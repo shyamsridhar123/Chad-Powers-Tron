@@ -67,8 +67,8 @@ export function FootballGame() {
     selectedReceiver: null,
   })
   const [uiReceivers, setUiReceivers] = useState<Receiver[]>([
-    { id: "wr1", position: { x: -8, z: -8 }, isOpen: true },
-    { id: "wr2", position: { x: 8, z: -8 }, isOpen: true },
+    { id: "wr1", position: { x: -8, z: -10 }, isOpen: true },
+    { id: "wr2", position: { x: 8, z: -10 }, isOpen: true },
   ])
 
   const { isMuted, toggleMute, playTouchdown, playSack, playThrow, ensureAudioReady } = useAudioManager(
@@ -718,16 +718,16 @@ export function FootballGame() {
     ;(qbResult.group as any).leftArmGroup = qbResult.leftArmGroup
     ;(qbResult.group as any).rightArmGroup = qbResult.rightArmGroup
 
-    // Create receivers
+    // Create receivers - start at line of scrimmage
     const receiverData = [
       {
-        pos: new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, ENDZONE_Z - 10),
+        pos: new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, -10),
         color: "#00ff88",
         secondary: "#002211",
         id: "wr1",
       },
       {
-        pos: new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, ENDZONE_Z - 10),
+        pos: new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, -10),
         color: "#88ff00",
         secondary: "#112200",
         id: "wr2",
@@ -769,11 +769,11 @@ export function FootballGame() {
     })
 
     const defenderData = [
-      { pos: new BABYLON.Vector3(-4, 0, -12), target: "rusher" },
-      { pos: new BABYLON.Vector3(4, 0, -12), target: "rusher" },
-      { pos: new BABYLON.Vector3(-12, 0, 0), target: "corner" },
-      { pos: new BABYLON.Vector3(12, 0, 0), target: "corner" },
-      { pos: new BABYLON.Vector3(0, 0, 10), target: "safety" },
+      { pos: new BABYLON.Vector3(-4, 0, -8), target: "rusher" },
+      { pos: new BABYLON.Vector3(4, 0, -8), target: "rusher" },
+      { pos: new BABYLON.Vector3(-12, 0, -5), target: "corner" },
+      { pos: new BABYLON.Vector3(12, 0, -5), target: "corner" },
+      { pos: new BABYLON.Vector3(0, 0, 0), target: "safety" },
     ]
 
     defendersRef.current = defenderData.map((d, i) => {
@@ -819,8 +819,8 @@ export function FootballGame() {
       }
 
       const receiverPositions = [
-        new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, ENDZONE_Z - 10),
-        new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, ENDZONE_Z - 10),
+        new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, -10),
+        new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, -10),
       ]
       receiversRef.current.forEach((r, i) => {
         r.group.position = receiverPositions[i].clone()
@@ -836,11 +836,11 @@ export function FootballGame() {
       })
 
       const defenderPositions = [
-        { pos: new BABYLON.Vector3(-4, 0, -12), target: "rusher" },
-        { pos: new BABYLON.Vector3(4, 0, -12), target: "rusher" },
-        { pos: new BABYLON.Vector3(-12, 0, 0), target: "corner" },
-        { pos: new BABYLON.Vector3(12, 0, 0), target: "corner" },
-        { pos: new BABYLON.Vector3(0, 0, 10), target: "safety" },
+        { pos: new BABYLON.Vector3(-4, 0, -8), target: "rusher" },
+        { pos: new BABYLON.Vector3(4, 0, -8), target: "rusher" },
+        { pos: new BABYLON.Vector3(-12, 0, -5), target: "corner" },
+        { pos: new BABYLON.Vector3(12, 0, -5), target: "corner" },
+        { pos: new BABYLON.Vector3(0, 0, 0), target: "safety" },
       ]
       defendersRef.current.forEach((d, i) => {
         d.group.position = defenderPositions[i].pos.clone()
@@ -1123,25 +1123,25 @@ export function FootballGame() {
         }
       }
 
-      // Receiver routes
+      // Receiver routes - run forward towards endzone
       receiversRef.current.forEach((r, i) => {
         const routeSpeed = 10
-        // Initial positioning adjustment
-        if (r.group.position.z > -FIELD_MIN_Z / 2) {
+        
+        // Receivers run forward (positive z direction) from line of scrimmage
+        if (r.group.position.z < ENDZONE_Z - 1) {
+          // Run routes
           if (i === 0) {
-            // WR1
+            // WR1 - streak left
             r.group.position.z += routeSpeed * delta
-            r.group.position.x += routeSpeed * 0.3 * delta
+            if (r.group.position.z > 5) {
+              r.group.position.x -= routeSpeed * 0.15 * delta
+            }
           } else {
-            // WR2
+            // WR2 - streak right
             r.group.position.z += routeSpeed * delta
-            r.group.position.x -= routeSpeed * 0.2 * delta
-          }
-        } else {
-          // Adjust initial routes if needed, or let them start from their reset positions
-          if (r.group.position.z < -ENDZONE_Z + 5) {
-            // Starting closer to the line of scrimmage
-            r.group.position.z += routeSpeed * delta
+            if (r.group.position.z > 5) {
+              r.group.position.x += routeSpeed * 0.15 * delta
+            }
           }
         }
 
@@ -1171,7 +1171,7 @@ export function FootballGame() {
           const toQB = qbRef.current.position.subtract(d.group.position)
           toQB.y = 0
           toQB.normalize()
-          const rushSpeed = 1.8
+          const rushSpeed = 2.5
           d.group.position.addInPlace(toQB.scale(rushSpeed * delta))
 
           d.group.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, d.group.position.x))
@@ -1189,7 +1189,7 @@ export function FootballGame() {
             const toReceiver = targetReceiver.group.position.subtract(d.group.position)
             toReceiver.y = 0
             toReceiver.normalize()
-            const coverSpeed = 3
+            const coverSpeed = 8.5
             d.group.position.addInPlace(toReceiver.scale(coverSpeed * delta))
 
             d.group.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, d.group.position.x))
@@ -1213,7 +1213,8 @@ export function FootballGame() {
             }
           }
         } else if (d.target === "safety") {
-          d.group.position.z += 2 * delta
+          // Safety moves back to cover deep
+          d.group.position.z += 5 * delta
           d.group.position.z = Math.min(ENDZONE_Z - 2, d.group.position.z)
           d.group.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, d.group.position.x))
         }
