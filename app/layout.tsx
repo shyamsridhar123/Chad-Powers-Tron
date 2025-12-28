@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "TRON CHAD POWERS - 5v5 Arcade Football",
+  title: "Chad Powers Tron - 5v5 Arcade Football",
   description:
     "A Tron-themed NFL arcade football game where you play as Chad Powers throwing to receivers before getting sacked",
   generator: "v0.app",
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "TRON CHAD POWERS",
+    title: "Chad Powers Tron",
   },
 }
 
