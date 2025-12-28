@@ -12,7 +12,7 @@ export function VirtualJoystick({ onMove }: VirtualJoystickProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [stickPosition, setStickPosition] = useState({ x: 0, y: 0 })
   const centerRef = useRef({ x: 0, y: 0 })
-  const maxDistance = 35
+  const maxDistance = 40 // Increased from 35 to 40 for larger joystick
 
   const handleStart = useCallback(
     (clientX: number, clientY: number) => {
@@ -67,7 +67,12 @@ export function VirtualJoystick({ onMove }: VirtualJoystickProps) {
 
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      e.preventDefault()
+      // Note: preventDefault may not work in passive listeners, but we try anyway for scroll prevention
+      try {
+        e.preventDefault()
+      } catch (err) {
+        // Passive listener - ignore error
+      }
       const touch = e.touches[0]
       handleStart(touch.clientX, touch.clientY)
     },
@@ -76,7 +81,11 @@ export function VirtualJoystick({ onMove }: VirtualJoystickProps) {
 
   const onTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      e.preventDefault()
+      try {
+        e.preventDefault()
+      } catch (err) {
+        // Passive listener - ignore error
+      }
       const touch = e.touches[0]
       handleMove(touch.clientX, touch.clientY)
     },
@@ -114,13 +123,13 @@ export function VirtualJoystick({ onMove }: VirtualJoystickProps) {
 
   return (
     <div className="absolute bottom-8 left-6 z-50 pb-safe">
-      {/* Joystick container */}
+      {/* Joystick container - IMPROVED: Larger size for mobile (28 -> 32) */}
       <div
         ref={containerRef}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
-        className="relative w-28 h-28 rounded-full bg-black/50 backdrop-blur-sm border-2 border-cyan-500/50 flex items-center justify-center cursor-pointer select-none"
+        className="relative w-32 h-32 rounded-full bg-black/50 backdrop-blur-sm border-2 border-cyan-500/50 flex items-center justify-center cursor-pointer select-none"
         style={{
           boxShadow: isDragging
             ? "0 0 30px rgba(0, 255, 255, 0.6), inset 0 0 25px rgba(0, 255, 255, 0.2)"
@@ -136,9 +145,9 @@ export function VirtualJoystick({ onMove }: VirtualJoystickProps) {
         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500/50 text-xs font-bold">◀</div>
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-500/50 text-xs font-bold">▶</div>
 
-        {/* Joystick knob */}
+        {/* Joystick knob - IMPROVED: Larger knob for better mobile visibility */}
         <div
-          className="absolute w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 border-2 border-cyan-300"
+          className="absolute w-14 h-14 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 border-2 border-cyan-300"
           style={{
             transform: `translate(${stickPosition.x}px, ${stickPosition.y}px)`,
             boxShadow: isDragging

@@ -2,19 +2,19 @@
   "name": "Chad Powers Tron - 5v5 Arcade Football",
   "short_name": "Chad Powers Tron",
   "description": "Tron-themed NFL arcade football game - Play as Chad Powers",
-  "start_url": "/",
+  "start_url": "/Chad-Powers-Tron/",
   "display": "fullscreen",
   "background_color": "#050510",
   "theme_color": "#00ffff",
-  "orientation": "portrait",
+  "orientation": "landscape",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/Chad-Powers-Tron/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/Chad-Powers-Tron/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
