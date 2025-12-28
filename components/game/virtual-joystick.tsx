@@ -67,12 +67,9 @@ export function VirtualJoystick({ onMove }: VirtualJoystickProps) {
 
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      // Note: preventDefault may not work in passive listeners, but we try anyway for scroll prevention
-      try {
-        e.preventDefault()
-      } catch (err) {
-        // Passive listener - ignore error
-      }
+      // Attempt to prevent default scroll behavior
+      // Note: May be ignored in passive event listeners
+      e.preventDefault()
       const touch = e.touches[0]
       handleStart(touch.clientX, touch.clientY)
     },
@@ -81,11 +78,7 @@ export function VirtualJoystick({ onMove }: VirtualJoystickProps) {
 
   const onTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      try {
-        e.preventDefault()
-      } catch (err) {
-        // Passive listener - ignore error
-      }
+      e.preventDefault()
       const touch = e.touches[0]
       handleMove(touch.clientX, touch.clientY)
     },

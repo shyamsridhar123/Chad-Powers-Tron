@@ -216,7 +216,7 @@ export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggl
       {gameState.gameStatus === "playing" && gameState.yardsToTouchdown <= 10 && gameState.cutscene === "none" && (
         <div className="absolute bottom-32 left-1/2 -translate-x-1/2 pointer-events-none z-30 animate-pulse">
           <div className="bg-emerald-500/20 text-emerald-300 border-2 border-emerald-400 px-6 py-2 rounded-full text-sm font-bold uppercase tracking-wider shadow-lg shadow-emerald-500/30">
-            🏈 RedZone! {gameState.yardsToTouchdown} yards to TD!
+            <span aria-label="Football">🏈</span> RedZone! {gameState.yardsToTouchdown} yards to TD!
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ const FIELD_HALF_WIDTH = FIELD_WIDTH / 2 - 0.5
 const FIELD_MIN_Z = -28 // adjusted for larger field
 const FIELD_MAX_Z = 28 // adjusted for larger field
 const ENDZONE_Z = 25 // adjusted for larger field
+const RECEIVER_MAX_ENDZONE_DEPTH = ENDZONE_Z + 2 // Receivers can run to z=27
 
 // Convert Z position to yards to touchdown (endzone starts at ENDZONE_Z - 3 = 22)
 const getYardsToTouchdown = (zPos: number): number => {
@@ -1392,7 +1393,7 @@ export function FootballGame() {
         
         // Clamp to field boundaries but allow throws INTO the endzone
         leadX = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, leadX))
-        leadZ = Math.min(ENDZONE_Z + 2, Math.max(receiverPos.z, leadZ)) // Allow throws into endzone
+        leadZ = Math.min(RECEIVER_MAX_ENDZONE_DEPTH, Math.max(receiverPos.z, leadZ)) // Allow throws into endzone
 
         const targetPos = new BABYLON.Vector3(leadX, 1.5, leadZ)
 
@@ -1556,7 +1557,7 @@ export function FootballGame() {
         message: "INTERCEPTED!" 
       }))
       triggerHaptic("error")
-      // Note: Currently uses sack sound for interceptions - could use dedicated interception sound
+      // TODO: Add dedicated interception sound effect - currently reusing sack sound
       audioFunctionsRef.current.playSack()
       if (ballRef.current) {
         createCelebrationParticles(ballRef.current.position.clone(), new BABYLON.Color4(1, 0.5, 0, 1))
@@ -1894,7 +1895,7 @@ export function FootballGame() {
         const yardsToEndzone = ENDZONE_Z - r.group.position.z
         
         // Receivers run forward (positive z direction) from line of scrimmage
-        if (r.group.position.z < ENDZONE_Z + 2) {
+        if (r.group.position.z < RECEIVER_MAX_ENDZONE_DEPTH) {
           // ENDZONE PRIORITY: When close to endzone, run straight to it - INCREASED range from 8 to 12 yards
           if (yardsToEndzone <= 12) {
             // Near the endzone - run a fade/streak to get DEEP into endzone for TD
@@ -1956,8 +1957,8 @@ export function FootballGame() {
           }
         }
 
-        // Allow receivers to run INTO the endzone (ENDZONE_Z + 2 = 27)
-        r.group.position.z = Math.min(ENDZONE_Z + 2, r.group.position.z)
+        // Allow receivers to run INTO the endzone
+        r.group.position.z = Math.min(RECEIVER_MAX_ENDZONE_DEPTH, r.group.position.z)
         r.group.position.x = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, r.group.position.x))
 
         r.data.position = { x: r.group.position.x, z: r.group.position.z }
