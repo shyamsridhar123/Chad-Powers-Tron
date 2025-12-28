@@ -181,12 +181,15 @@ export function FootballGame() {
     setCanSkipCutscene(false)
     setGameState((prev) => ({ ...prev, cutscene: "none" }))
     
-    // Reset camera to default position
+    // Reset camera to position based on current line of scrimmage
     if (cameraRef.current) {
+      const los = lineOfScrimmageRef.current
+      const cameraZ = Math.min(los + 10, ENDZONE_Z - 5)
       cameraRef.current.alpha = -Math.PI / 2
       cameraRef.current.beta = Math.PI / 2.8
       cameraRef.current.radius = 60
-      cameraRef.current.target = new BABYLON.Vector3(0, 0, -2)
+      cameraRef.current.target = new BABYLON.Vector3(0, 0, cameraZ)
+      originalCameraTargetRef.current = cameraRef.current.target.clone()
     }
   }, [canSkipCutscene, stopCutsceneAnimations])
 
@@ -952,6 +955,14 @@ export function FootballGame() {
 
       // Get current line of scrimmage from ref
       const los = lineOfScrimmageRef.current
+      
+      // Update camera to follow the action - center on the play area
+      // Camera target should be between LOS and endzone
+      const cameraZ = Math.min(los + 10, ENDZONE_Z - 5) // Look ahead of LOS toward endzone
+      if (cameraRef.current) {
+        cameraRef.current.target = new BABYLON.Vector3(0, 0, cameraZ)
+        originalCameraTargetRef.current = cameraRef.current.target.clone()
+      }
 
       // Update first-down marker position from game state (not recalculated)
       if (firstDownMarkerRef.current) {
