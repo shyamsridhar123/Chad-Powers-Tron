@@ -49,18 +49,6 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
-      
-      - name: Setup Instructions
-        if: success()
-        run: |
-          echo "✅ Build completed successfully!"
-          echo ""
-          echo "📄 If deployment fails, please ensure GitHub Pages is configured:"
-          echo "   1. Go to Settings → Pages"
-          echo "   2. Set Source to 'GitHub Actions'"
-          echo "   3. For private repos, GitHub Pro is required (or make repo public)"
-          echo ""
-          echo "📖 See DEPLOYMENT_SETUP.md for detailed instructions"
 
   deploy:
     environment:

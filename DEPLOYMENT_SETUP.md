@@ -41,16 +41,16 @@ Once GitHub Pages is configured with "GitHub Actions" as the source:
 - Your site will be deployed to: https://shyamsridhar123.github.io/Chad-Powers-Tron/
 - Future pushes to `main` will automatically trigger deployments
 
-### Important Notes for Private Repositories
+### Important Notes About Repository Visibility
 
-⚠️ **Note**: This repository is currently **private**. 
+⚠️ **Note for Private Repositories**: 
 
 - GitHub Pages for private repositories requires a GitHub Pro, Team, or Enterprise plan
-- If you're on the free tier, you have two options:
+- If your repository is private and you're on the free tier, you have two options:
   1. **Make the repository public** (Settings → Danger Zone → Change visibility)
   2. **Upgrade to GitHub Pro** for private repository Pages support
 
-If the repository remains private without a paid plan, the deployment will continue to fail even after configuring the Pages settings.
+If your repository is private without a paid plan, the deployment will continue to fail even after configuring the Pages settings.
 
 ### Alternative Deployment Options
 
