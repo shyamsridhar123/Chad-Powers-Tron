@@ -87,6 +87,7 @@ export function FootballGame() {
   const keyboardRef = useRef({ w: false, a: false, s: false, d: false })
   const playStartedRef = useRef(false)
   const ballThrownRef = useRef(false)
+  const playEndedRef = useRef(false) // Prevents sacks after play is over
   const isDesktop = useIsDesktop()
   const ballTargetRef = useRef<BABYLON.Vector3 | null>(null)
   const animationTimeRef = useRef(0)
@@ -197,6 +198,7 @@ export function FootballGame() {
     })
     playStartedRef.current = false
     ballThrownRef.current = false
+    playEndedRef.current = false
     cutsceneActiveRef.current = "game-start"
   }, [ensureAudioReady])
 
@@ -216,6 +218,7 @@ export function FootballGame() {
     })
     playStartedRef.current = false
     ballThrownRef.current = false
+    playEndedRef.current = false
     cutsceneActiveRef.current = "game-start"
   }, [ensureAudioReady])
 
@@ -900,6 +903,7 @@ export function FootballGame() {
     const resetPlay = () => {
       playStartedRef.current = false
       ballThrownRef.current = false
+      playEndedRef.current = false
       ballTargetRef.current = null
       animationTimeRef.current = 0
       ballFlightRef.current = null
@@ -1398,6 +1402,9 @@ export function FootballGame() {
 
     // Handle touchdown
     const handleTouchdown = () => {
+      if (playEndedRef.current) return // Prevent double-triggering
+      playEndedRef.current = true
+      
       // Reset to starting position after touchdown
       lineOfScrimmageRef.current = -15
       
@@ -1434,6 +1441,9 @@ export function FootballGame() {
 
     // Handle catch - implements first-down chain system
     const handleCatch = () => {
+      if (playEndedRef.current) return // Prevent double-triggering
+      playEndedRef.current = true
+      
       triggerHaptic("medium")
       
       if (!ballRef.current) return
@@ -1512,6 +1522,9 @@ export function FootballGame() {
 
     // Handle interception - immediate turnover (game over)
     const handleInterception = () => {
+      if (playEndedRef.current) return // Prevent double-triggering
+      playEndedRef.current = true
+      
       const ballPos = ballRef.current?.position.clone() || new BABYLON.Vector3(0, 2, 0)
       
       setGameState((prev) => ({ 
@@ -1541,6 +1554,9 @@ export function FootballGame() {
 
     // Handle sack - lose a down AND lose yardage (ball spotted where QB was tackled)
     const handleSack = () => {
+      if (playEndedRef.current) return // Prevent double-triggering
+      playEndedRef.current = true
+      
       const qbPos = qbRef.current?.position.clone() || new BABYLON.Vector3(0, 0, -15)
       const newDowns = gameStateRef.current.downs + 1
       
@@ -1602,6 +1618,9 @@ export function FootballGame() {
 
     // Handle incomplete - lose a down, no yards gained
     const handleIncomplete = () => {
+      if (playEndedRef.current) return // Prevent double-triggering
+      playEndedRef.current = true
+      
       const newDowns = gameStateRef.current.downs + 1
       if (newDowns > 4) {
         setGameState((prev) => ({ 
