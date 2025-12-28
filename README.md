@@ -15,6 +15,16 @@ Your project is live at:
 
 The app is automatically deployed to GitHub Pages via GitHub Actions whenever changes are pushed to the main branch.
 
+### Initial Setup Required
+
+⚠️ **One-Time Setup**: Before the deployment workflow can succeed, you must enable GitHub Pages in the repository settings:
+
+1. Go to **Settings** → **Pages** in your GitHub repository
+2. Under **Source**, select **GitHub Actions**
+3. Click **Save**
+
+Once configured, the deployment workflow will automatically run on every push to the `main` branch.
+
 ## Development
 
 To run the app locally:
