@@ -861,16 +861,17 @@ export function FootballGame() {
     ;(qbResult.group as any).leftArmGroup = qbResult.leftArmGroup
     ;(qbResult.group as any).rightArmGroup = qbResult.rightArmGroup
 
-    // Create receivers - start at line of scrimmage
+    // Create receivers - start at initial line of scrimmage position
+    const initialLOS = -15
     const receiverData = [
       {
-        pos: new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, -10),
+        pos: new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, initialLOS),
         color: "#00ff88",
         secondary: "#002211",
         id: "wr1",
       },
       {
-        pos: new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, -10),
+        pos: new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, initialLOS),
         color: "#88ff00",
         secondary: "#112200",
         id: "wr2",
