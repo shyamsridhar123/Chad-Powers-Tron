@@ -372,9 +372,18 @@ export function FootballGame() {
       const defenseEndzone = BABYLON.MeshBuilder.CreateGround("defenseEZ", { width: fieldWidth, height: 6 }, scene)
       defenseEndzone.position = new BABYLON.Vector3(0, 0.001, ENDZONE_Z)
       const defenseEZMat = new BABYLON.StandardMaterial("defenseEZMat", scene)
-      defenseEZMat.diffuseColor = new BABYLON.Color3(0.06, 0.02, 0.04)
-      defenseEZMat.emissiveColor = new BABYLON.Color3(0, 0, 0)
+      defenseEZMat.diffuseColor = new BABYLON.Color3(0.15, 0.4, 0.15) // Brighter green for scoring zone
+      defenseEZMat.emissiveColor = new BABYLON.Color3(0.05, 0.15, 0.05) // Subtle glow
       defenseEndzone.material = defenseEZMat
+      
+      // Add "SCORE" text indicator in endzone
+      const endzoneMarker = BABYLON.MeshBuilder.CreateBox("endzoneMarker", { width: 8, height: 0.05, depth: 0.4 }, scene)
+      endzoneMarker.position = new BABYLON.Vector3(0, 0.03, ENDZONE_Z)
+      const endzoneMarkerMat = new BABYLON.StandardMaterial("endzoneMarkerMat", scene)
+      endzoneMarkerMat.diffuseColor = new BABYLON.Color3(0, 1, 0.5)
+      endzoneMarkerMat.emissiveColor = new BABYLON.Color3(0, 0.5, 0.25)
+      endzoneMarker.material = endzoneMarkerMat
+      glowLayer.addIncludedOnlyMesh(endzoneMarker)
 
       const ezLinePositions = [-ENDZONE_Z - 3, ENDZONE_Z + 3]
       ezLinePositions.forEach((z, i) => {
@@ -1295,24 +1304,10 @@ export function FootballGame() {
           triggerScreenShake(0.5, 250)
 
           setTimeout(() => {
-            const pullbackEasing = new BABYLON.SineEase()
-            pullbackEasing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT)
-
-            animateCameraTo(
-              -Math.PI / 2,
-              Math.PI / 2.8,
-              60,
-              new BABYLON.Vector3(0, 0, -2),
-              0.8,
-              pullbackEasing,
-              () => {
-                cutsceneActiveRef.current = "none"
-                setShowLetterbox(false)
-                setCanSkipCutscene(false)
-                setGameState((prev) => ({ ...prev, cutscene: "none" }))
-                originalCameraTargetRef.current = cameraRef.current?.target.clone() || null
-              }
-            )
+            cutsceneActiveRef.current = "none"
+            setShowLetterbox(false)
+            setCanSkipCutscene(false)
+            // Don't reset cutscene state here - let handleInterception control game over
           }, 500)
         }
       )
