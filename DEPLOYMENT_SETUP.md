@@ -1,8 +1,35 @@
 # GitHub Pages Deployment Setup
 
-## Current Issue
+## ⚠️ ACTION REQUIRED: Enable GitHub Pages
 
-The GitHub Actions workflow is failing at the deployment step with a validation error. This is typically caused by GitHub Pages not being properly configured in the repository settings.
+**Current Status**: ❌ Deployment is failing  
+**Reason**: GitHub Pages is **NOT ENABLED** in this repository
+
+### Quick Fix (2 minutes)
+
+This is **not a code problem** - it's a repository settings configuration. Follow these steps:
+
+1. Go to: https://github.com/shyamsridhar123/Chad-Powers-Tron/settings/pages
+2. Under "Build and deployment" → "Source", select **"GitHub Actions"**
+3. Push a new commit or manually trigger the workflow
+
+**⚠️ Important for Private Repositories**: If your repository is private (which it currently is), GitHub Pages requires:
+- **GitHub Pro** subscription, OR
+- **Make the repository public** (Settings → General → Danger Zone → Change visibility)
+
+---
+
+## Detailed Explanation
+
+## Current Status
+
+**❌ Deployment Failing**: The workflow run at https://github.com/shyamsridhar123/Chad-Powers-Tron/actions/runs/20548010225/job/59021364637 failed.
+
+**Root Cause**: GitHub Pages is **not enabled** in this repository (confirmed by `has_pages: false` in repository metadata).
+
+## What's the Problem?
+
+The GitHub Actions workflow is failing at the deployment step with a validation error **because GitHub Pages has not been configured in the repository settings**.
 
 ## Solution: Enable GitHub Pages
 
