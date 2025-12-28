@@ -1198,55 +1198,70 @@ export function FootballGame() {
         }
       })
 
-      // Receiver routes - run intelligent routes towards endzone
+      // Receiver routes - run intelligent routes with breaks and separation
       receiversRef.current.forEach((r, i) => {
         const routeSpeed = 10
-        const currentTime = animationTimeRef.current
+        const startZ = -10 // Line of scrimmage
+        const distanceTraveled = r.group.position.z - startZ
         
         // Receivers run forward (positive z direction) from line of scrimmage
         if (r.group.position.z < ENDZONE_Z - 1) {
-          // Run intelligent routes based on coverage
           if (i === 0) {
-            // WR1 - smart post/corner route
-            r.group.position.z += routeSpeed * delta
+            // WR1 - Post/Corner route: Run vertical, then break diagonally
+            const breakPoint = 8 // Break after 8 yards
             
-            // Break off at yard 0, then cut based on coverage
-            if (r.group.position.z > 0) {
-              // If defender is inside, run corner route (outside)
-              const defender = defendersRef.current[2] // corner defender for WR1
-              if (defender && defendersRef.current.length > 2 && defender.group.position.x > r.group.position.x) {
-                r.group.position.x -= routeSpeed * 0.2 * delta
-              } else {
-                // Run post route (inside)
-                r.group.position.x += routeSpeed * 0.15 * delta
-              }
+            if (distanceTraveled < breakPoint) {
+              // Phase 1: Run straight up the field (stem)
+              r.group.position.z += routeSpeed * delta
+              // Slight outside release to set up the break
+              r.group.position.x -= routeSpeed * 0.1 * delta
             } else {
-              // Run straight off the line
-              r.group.position.x -= routeSpeed * 0.05 * delta
+              // Phase 2: Break on the route - check defender position
+              const defender = defendersRef.current[2] // corner defender for WR1
+              const defenderInside = defender && defender.group.position.x > r.group.position.x
+              
+              if (defenderInside) {
+                // Defender is inside - run a corner route (break outside toward sideline)
+                r.group.position.z += routeSpeed * 0.6 * delta
+                r.group.position.x -= routeSpeed * 0.8 * delta // Strong outside cut
+              } else {
+                // Defender is outside - run a post route (break inside toward middle)
+                r.group.position.z += routeSpeed * 0.6 * delta
+                r.group.position.x += routeSpeed * 0.7 * delta // Strong inside cut
+              }
             }
           } else {
-            // WR2 - smart slant/streak route
-            r.group.position.z += routeSpeed * delta
+            // WR2 - Out/Slant route: Run vertical, then break sharply
+            const breakPoint = 6 // Break after 6 yards (shorter route)
             
-            // Break off at yard 0
-            if (r.group.position.z > 0) {
-              const defender = defendersRef.current[3] // corner defender for WR2
-              if (defender && defendersRef.current.length > 3 && defender.group.position.x < r.group.position.x) {
-                // Run outside if defender is inside
-                r.group.position.x += routeSpeed * 0.2 * delta
-              } else {
-                // Run slant (inside)
-                r.group.position.x -= routeSpeed * 0.15 * delta
-              }
+            if (distanceTraveled < breakPoint) {
+              // Phase 1: Run straight up the field (stem)
+              r.group.position.z += routeSpeed * delta
+              // Slight inside release to set up the break (toward center = negative x)
+              r.group.position.x -= routeSpeed * 0.1 * delta
             } else {
-              // Run straight off the line
-              r.group.position.x += routeSpeed * 0.05 * delta
+              // Phase 2: Break on the route - check defender position
+              // WR2 is on the right side (positive x), so:
+              // - defender.x < receiver.x means defender is INSIDE (toward center/left)
+              // - defender.x > receiver.x means defender is OUTSIDE (toward right sideline)
+              const defender = defendersRef.current[3] // corner defender for WR2
+              const defenderInside = defender && defender.group.position.x < r.group.position.x
+              
+              if (defenderInside) {
+                // Defender is inside (between receiver and center) - run out route toward sideline
+                r.group.position.z += routeSpeed * 0.4 * delta
+                r.group.position.x += routeSpeed * 0.9 * delta // Sharp outside cut (toward right sideline)
+              } else {
+                // Defender is outside or unknown - run slant route toward center
+                r.group.position.z += routeSpeed * 0.5 * delta
+                r.group.position.x -= routeSpeed * 0.85 * delta // Sharp inside cut (toward center)
+              }
             }
           }
         }
 
         r.group.position.z = Math.min(ENDZONE_Z - 1, r.group.position.z)
-        r.group.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, r.group.position.x))
+        r.group.position.x = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, r.group.position.x))
 
         r.data.position = { x: r.group.position.x, z: r.group.position.z }
 
