@@ -2,11 +2,24 @@
 
 import { useEffect, useRef, useCallback, useState } from "react"
 
+// Get base path for assets (handles GitHub Pages deployment)
+const getBasePath = () => {
+  if (typeof window !== "undefined") {
+    // Check if we're on GitHub Pages
+    const path = window.location.pathname
+    if (path.startsWith("/Chad-Powers-Tron")) {
+      return "/Chad-Powers-Tron"
+    }
+  }
+  return ""
+}
+
 export function useAudioManager(isPlaying: boolean) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const gainNodeRef = useRef<GainNode | null>(null)
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null)
+  const bgMusicSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const isPlayingRef = useRef(false)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const hasInitializedRef = useRef(false)
 
@@ -172,36 +185,41 @@ export function useAudioManager(isPlaying: boolean) {
     isPlayingRef.current = true
     console.log("[v0] Music started")
 
-    let step = 0
-    const bpm = 128
-    const stepTime = (60 / bpm / 2) * 1000
+    // Create and play background music from MP3 file
+    if (!bgMusicRef.current) {
+      const basePath = getBasePath()
+      const audio = new Audio(`${basePath}/victorious-cry-199535.mp3`)
+      audio.loop = true
+      audio.volume = 0.3
+      bgMusicRef.current = audio
 
-    intervalRef.current = setInterval(() => {
-      if (!isPlayingRef.current) return
-
-      if (step % 4 === 0) {
-        playKick()
+      // Connect to audio context for unified volume control
+      if (audioContextRef.current && !bgMusicSourceRef.current) {
+        try {
+          const source = audioContextRef.current.createMediaElementSource(audio)
+          bgMusicSourceRef.current = source
+          if (gainNodeRef.current) {
+            source.connect(gainNodeRef.current)
+          } else {
+            source.connect(audioContextRef.current.destination)
+          }
+        } catch (e) {
+          // If already connected, just play
+          console.log("[v0] Audio element already connected")
+        }
       }
+    }
 
-      playHiHat()
-
-      if (step % 2 === 0) {
-        playBassline(step / 2)
-      }
-
-      if (step % 2 === 1) {
-        playArpeggio(step)
-      }
-
-      step++
-    }, stepTime)
-  }, [playKick, playHiHat, playBassline, playArpeggio, initAudio])
+    bgMusicRef.current.play().catch((e) => {
+      console.log("[v0] Music autoplay blocked, will play on interaction:", e)
+    })
+  }, [initAudio])
 
   const stopMusic = useCallback(() => {
     isPlayingRef.current = false
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
+    if (bgMusicRef.current) {
+      bgMusicRef.current.pause()
+      bgMusicRef.current.currentTime = 0
     }
   }, [])
 
@@ -210,6 +228,9 @@ export function useAudioManager(isPlaying: boolean) {
       const newMuted = !prev
       if (gainNodeRef.current) {
         gainNodeRef.current.gain.value = newMuted ? 0 : 0.2
+      }
+      if (bgMusicRef.current) {
+        bgMusicRef.current.volume = newMuted ? 0 : 0.3
       }
       return newMuted
     })
@@ -271,6 +292,10 @@ export function useAudioManager(isPlaying: boolean) {
   useEffect(() => {
     return () => {
       stopMusic()
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause()
+        bgMusicRef.current = null
+      }
       if (audioContextRef.current) {
         audioContextRef.current.close()
       }

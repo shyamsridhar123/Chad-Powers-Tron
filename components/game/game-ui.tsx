@@ -124,8 +124,10 @@ export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggl
 
   return (
     <>
-      {/* Top HUD - Arcade style scoreboard */}
-      <div className="absolute inset-x-0 top-0 p-3 pt-safe">
+      {/* Top HUD - Arcade style scoreboard (hidden during cutscenes) */}
+      <div className={`absolute inset-x-0 top-0 p-3 pt-safe transition-opacity duration-500 ${
+        gameState.cutscene !== "none" ? "opacity-0 pointer-events-none" : "opacity-100"
+      }`}>
         <div className="flex justify-center items-stretch gap-2 max-w-md mx-auto">
           {/* Score */}
           <div className="flex-1 bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 border-cyan-500/50 rounded-xl px-3 py-2 shadow-lg shadow-cyan-500/20">
@@ -135,12 +137,11 @@ export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggl
             </div>
           </div>
 
-          {/* Down counter */}
+          {/* Down & Distance */}
           <div className="flex-1 bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 border-fuchsia-500/50 rounded-xl px-3 py-2 shadow-lg shadow-fuchsia-500/20">
             <div className="text-[10px] text-fuchsia-400 uppercase tracking-widest font-bold text-center">Down</div>
-            <div className="text-3xl font-black text-white text-center leading-none mt-1">
-              {gameState.downs}
-              <span className="text-lg text-zinc-500">/4</span>
+            <div className="text-2xl font-black text-white text-center leading-none mt-1">
+              {gameState.downs}<span className="text-lg text-zinc-400">&</span>{Math.round(gameState.yardsToGo)}
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import * as BABYLON from "@babylonjs/core"
 import { GameUI } from "./game/game-ui"
 import { VirtualJoystick } from "./game/virtual-joystick"
-import type { GameState, Receiver } from "./game/types"
+import type { GameState, Receiver, CutsceneType } from "./game/types"
 import { useAudioManager } from "./game/audio-manager"
 import { useIsDesktop } from "@/lib/use-device"
 
@@ -58,11 +58,17 @@ export function FootballGame() {
   >([])
   const offenseLineRef = useRef<BABYLON.TransformNode[]>([])
   const ballRef = useRef<BABYLON.Mesh | null>(null)
+  const firstDownMarkerRef = useRef<BABYLON.Mesh | null>(null)
+  const lineOfScrimmageRef = useRef<number>(-15)
 
   const [gameState, setGameState] = useState<GameState>({
     score: 0,
     downs: 1,
+    yardsToGo: 10,
+    lineOfScrimmage: -15,
+    firstDownMarker: -5,
     gameStatus: "menu",
+    cutscene: "none",
     sackTimer: 5,
     message: null,
     selectedReceiver: null,
@@ -95,6 +101,12 @@ export function FootballGame() {
     duration: number
     maxHeight: number
   } | null>(null)
+
+  // Cutscene state
+  const cutsceneActiveRef = useRef<CutsceneType>("none")
+  const cutsceneAnimationsRef = useRef<BABYLON.Animatable[]>([])
+  const [showLetterbox, setShowLetterbox] = useState(false)
+  const [canSkipCutscene, setCanSkipCutscene] = useState(false)
 
   const audioFunctionsRef = useRef({ playTouchdown, playSack, playThrow })
 
@@ -144,18 +156,48 @@ export function FootballGame() {
     }
   }, [])
 
+  // Stop all active cutscene animations
+  const stopCutsceneAnimations = useCallback(() => {
+    cutsceneAnimationsRef.current.forEach((anim) => anim.stop())
+    cutsceneAnimationsRef.current = []
+  }, [])
+
+  // Skip cutscene handler
+  const skipCutscene = useCallback(() => {
+    if (!canSkipCutscene || cutsceneActiveRef.current === "none") return
+    
+    stopCutsceneAnimations()
+    cutsceneActiveRef.current = "none"
+    setShowLetterbox(false)
+    setCanSkipCutscene(false)
+    setGameState((prev) => ({ ...prev, cutscene: "none" }))
+    
+    // Reset camera to default position
+    if (cameraRef.current) {
+      cameraRef.current.alpha = -Math.PI / 2
+      cameraRef.current.beta = Math.PI / 2.8
+      cameraRef.current.radius = 60
+      cameraRef.current.target = new BABYLON.Vector3(0, 0, -2)
+    }
+  }, [canSkipCutscene, stopCutsceneAnimations])
+
   const startGame = useCallback(() => {
     ensureAudioReady()
     setGameState({
       score: 0,
       downs: 1,
+      yardsToGo: 10,
+      lineOfScrimmage: -15,
+      firstDownMarker: -5,
       gameStatus: "playing",
+      cutscene: "game-start",
       sackTimer: 5,
       message: null,
       selectedReceiver: null,
     })
     playStartedRef.current = false
     ballThrownRef.current = false
+    cutsceneActiveRef.current = "game-start"
   }, [ensureAudioReady])
 
   const restartGame = useCallback(() => {
@@ -163,13 +205,18 @@ export function FootballGame() {
     setGameState({
       score: 0,
       downs: 1,
+      yardsToGo: 10,
+      lineOfScrimmage: -15,
+      firstDownMarker: -5,
       gameStatus: "playing",
+      cutscene: "game-start",
       sackTimer: 5,
       message: null,
       selectedReceiver: null,
     })
     playStartedRef.current = false
     ballThrownRef.current = false
+    cutsceneActiveRef.current = "game-start"
   }, [ensureAudioReady])
 
   useEffect(() => {
@@ -336,6 +383,20 @@ export function FootballGame() {
         ezLine.material = ezMat
         glowLayer.addIncludedOnlyMesh(ezLine)
       })
+
+      // First-down marker line (yellow/orange glowing line)
+      const firstDownLine = BABYLON.MeshBuilder.CreateBox(
+        "firstDownLine",
+        { width: fieldWidth, height: 0.04, depth: 0.25 },
+        scene,
+      )
+      firstDownLine.position = new BABYLON.Vector3(0, 0.03, -5) // Initial position at first down marker
+      const firstDownMat = new BABYLON.StandardMaterial("firstDownMat", scene)
+      firstDownMat.diffuseColor = new BABYLON.Color3(1, 0.7, 0)
+      firstDownMat.emissiveColor = new BABYLON.Color3(0.5, 0.3, 0)
+      firstDownLine.material = firstDownMat
+      glowLayer.addIncludedOnlyMesh(firstDownLine)
+      firstDownMarkerRef.current = firstDownLine
     }
 
     // Create player function
@@ -835,7 +896,7 @@ export function FootballGame() {
     ballRef.current = createFootball()
     ballTrailRef.current = createBallTrail()
 
-    // Reset play function
+    // Reset play function - positions players relative to line of scrimmage
     const resetPlay = () => {
       playStartedRef.current = false
       ballThrownRef.current = false
@@ -847,19 +908,31 @@ export function FootballGame() {
         ballTrailRef.current.stop()
       }
 
+      // Get current line of scrimmage from ref
+      const los = lineOfScrimmageRef.current
+
+      // Update first-down marker position from game state (not recalculated)
+      if (firstDownMarkerRef.current) {
+        // Use the firstDownMarker from game state, not los + 10
+        firstDownMarkerRef.current.position.z = gameStateRef.current.firstDownMarker
+      }
+
+      // Position QB behind line of scrimmage
       if (qbRef.current) {
-        qbRef.current.position = new BABYLON.Vector3(0, 0, -18) // Adjusted for larger field
+        qbRef.current.position = new BABYLON.Vector3(0, 0, los - 8)
         qbRef.current.rotation.y = 0
       }
 
+      // Position ball with QB
       if (ballRef.current) {
-        ballRef.current.position = new BABYLON.Vector3(0.3, 1.5, -9.5) // Adjusted for larger field
+        ballRef.current.position = new BABYLON.Vector3(0.3, 1.5, los + 0.5)
         ballRef.current.rotation = new BABYLON.Vector3(Math.PI / 2, 0, 0)
       }
 
+      // Position receivers at line of scrimmage
       const receiverPositions = [
-        new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, -10),
-        new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, -10),
+        new BABYLON.Vector3(-FIELD_HALF_WIDTH + 4, 0, los),
+        new BABYLON.Vector3(FIELD_HALF_WIDTH - 4, 0, los),
       ]
       receiversRef.current.forEach((r, i) => {
         r.group.position = receiverPositions[i].clone()
@@ -867,10 +940,10 @@ export function FootballGame() {
         r.data.position = { x: receiverPositions[i].x, z: receiverPositions[i].z }
       })
 
-      // Adjusted offense line positions for larger field
+      // Position offensive line at line of scrimmage
       const linePositions2 = [-FIELD_HALF_WIDTH / 2, FIELD_HALF_WIDTH / 2]
       offenseLineRef.current.forEach((l, i) => {
-        l.position = new BABYLON.Vector3(linePositions2[i], 0, -10)
+        l.position = new BABYLON.Vector3(linePositions2[i], 0, los)
         l.rotation.y = 0
         
         // Reset lineman animation state
@@ -881,12 +954,13 @@ export function FootballGame() {
         if (oline.rightArmGroup) oline.rightArmGroup.rotation.x = 0
       })
 
+      // Position defenders relative to line of scrimmage
       const defenderPositions = [
-        { pos: new BABYLON.Vector3(-4, 0, -8), target: "rusher" },
-        { pos: new BABYLON.Vector3(4, 0, -8), target: "rusher" },
-        { pos: new BABYLON.Vector3(-12, 0, -5), target: "corner" },
-        { pos: new BABYLON.Vector3(12, 0, -5), target: "corner" },
-        { pos: new BABYLON.Vector3(0, 0, 5), target: "safety" },
+        { pos: new BABYLON.Vector3(-4, 0, los + 2), target: "rusher" },
+        { pos: new BABYLON.Vector3(4, 0, los + 2), target: "rusher" },
+        { pos: new BABYLON.Vector3(-12, 0, los + 5), target: "corner" },
+        { pos: new BABYLON.Vector3(12, 0, los + 5), target: "corner" },
+        { pos: new BABYLON.Vector3(0, 0, los + 15), target: "safety" },
       ]
       defendersRef.current.forEach((d, i) => {
         d.group.position = defenderPositions[i].pos.clone()
@@ -906,7 +980,7 @@ export function FootballGame() {
     // Calculate receiver's current velocity based on their route
     const getReceiverVelocity = (receiverIndex: number, receiverPos: BABYLON.Vector3): BABYLON.Vector3 => {
       const routeSpeed = 10
-      const startZ = -10 // Line of scrimmage
+      const startZ = lineOfScrimmageRef.current // Use dynamic line of scrimmage
       const distanceTraveled = receiverPos.z - startZ
       
       let velocityX = 0
@@ -969,6 +1043,278 @@ export function FootballGame() {
         }
       }, duration)
     }
+
+    // ========== CUTSCENE ANIMATION SYSTEM ==========
+    
+    // Animate camera to target position with easing
+    const animateCameraTo = (
+      targetAlpha: number,
+      targetBeta: number,
+      targetRadius: number,
+      targetPosition: BABYLON.Vector3,
+      duration: number,
+      easingFunction?: BABYLON.EasingFunction,
+      onComplete?: () => void
+    ) => {
+      if (!cameraRef.current) return
+
+      const frameRate = 60
+      const totalFrames = duration * frameRate
+
+      // Alpha animation
+      const alphaAnim = new BABYLON.Animation(
+        "cameraAlpha",
+        "alpha",
+        frameRate,
+        BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+        BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+      )
+      alphaAnim.setKeys([
+        { frame: 0, value: cameraRef.current.alpha },
+        { frame: totalFrames, value: targetAlpha },
+      ])
+      if (easingFunction) alphaAnim.setEasingFunction(easingFunction)
+
+      // Beta animation
+      const betaAnim = new BABYLON.Animation(
+        "cameraBeta",
+        "beta",
+        frameRate,
+        BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+        BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+      )
+      betaAnim.setKeys([
+        { frame: 0, value: cameraRef.current.beta },
+        { frame: totalFrames, value: targetBeta },
+      ])
+      if (easingFunction) betaAnim.setEasingFunction(easingFunction)
+
+      // Radius animation
+      const radiusAnim = new BABYLON.Animation(
+        "cameraRadius",
+        "radius",
+        frameRate,
+        BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+        BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+      )
+      radiusAnim.setKeys([
+        { frame: 0, value: cameraRef.current.radius },
+        { frame: totalFrames, value: targetRadius },
+      ])
+      if (easingFunction) radiusAnim.setEasingFunction(easingFunction)
+
+      // Target animation
+      const targetAnim = new BABYLON.Animation(
+        "cameraTarget",
+        "target",
+        frameRate,
+        BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+        BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+      )
+      targetAnim.setKeys([
+        { frame: 0, value: cameraRef.current.target.clone() },
+        { frame: totalFrames, value: targetPosition },
+      ])
+      if (easingFunction) targetAnim.setEasingFunction(easingFunction)
+
+      const animatable = scene.beginDirectAnimation(
+        cameraRef.current,
+        [alphaAnim, betaAnim, radiusAnim, targetAnim],
+        0,
+        totalFrames,
+        false,
+        1,
+        onComplete
+      )
+      
+      cutsceneAnimationsRef.current.push(animatable)
+      return animatable
+    }
+
+    // Play Game Start cutscene - sweeping camera reveal
+    const playGameStartCutscene = () => {
+      if (!cameraRef.current) return
+
+      setShowLetterbox(true)
+      
+      // Start from dramatic overview angle
+      cameraRef.current.alpha = -Math.PI / 4
+      cameraRef.current.beta = Math.PI / 4
+      cameraRef.current.radius = 100
+      cameraRef.current.target = new BABYLON.Vector3(0, 0, 5)
+
+      // Allow skip after 0.5 seconds
+      setTimeout(() => setCanSkipCutscene(true), 500)
+
+      // Smooth easing for cinematic feel
+      const easing = new BABYLON.SineEase()
+      easing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT)
+
+      // Animate to game view position
+      animateCameraTo(
+        -Math.PI / 2,    // alpha - behind players
+        Math.PI / 2.8,   // beta - slightly above
+        60,              // radius
+        new BABYLON.Vector3(0, 0, -2),
+        2.5,             // 2.5 second duration
+        easing,
+        () => {
+          // Cutscene complete
+          cutsceneActiveRef.current = "none"
+          setShowLetterbox(false)
+          setCanSkipCutscene(false)
+          setGameState((prev) => ({ ...prev, cutscene: "none" }))
+          originalCameraTargetRef.current = cameraRef.current?.target.clone() || null
+        }
+      )
+    }
+
+    // Play Touchdown cutscene - zoom to receiver, victory celebration
+    const playTouchdownCutscene = (receiverPosition: BABYLON.Vector3) => {
+      if (!cameraRef.current) return
+
+      setShowLetterbox(true)
+      setTimeout(() => setCanSkipCutscene(true), 500)
+
+      const easing = new BABYLON.CircleEase()
+      easing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEOUT)
+
+      // Phase 1: Quick zoom to receiver
+      animateCameraTo(
+        cameraRef.current.alpha,
+        Math.PI / 3,     // Lower angle to look up at player
+        20,              // Close zoom
+        receiverPosition.add(new BABYLON.Vector3(0, 2, 0)),
+        0.8,
+        easing,
+        () => {
+          // Phase 2: Orbit around for celebration
+          const orbitEasing = new BABYLON.SineEase()
+          orbitEasing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT)
+
+          animateCameraTo(
+            cameraRef.current!.alpha + Math.PI * 0.75, // Orbit 135 degrees
+            Math.PI / 3,
+            25,
+            receiverPosition.add(new BABYLON.Vector3(0, 2, 0)),
+            1.5,
+            orbitEasing,
+            () => {
+              // Phase 3: Pull back to game view
+              animateCameraTo(
+                -Math.PI / 2,
+                Math.PI / 2.8,
+                60,
+                new BABYLON.Vector3(0, 0, -2),
+                0.7,
+                easing,
+                () => {
+                  cutsceneActiveRef.current = "none"
+                  setShowLetterbox(false)
+                  setCanSkipCutscene(false)
+                  setGameState((prev) => ({ ...prev, cutscene: "none" }))
+                  originalCameraTargetRef.current = cameraRef.current?.target.clone() || null
+                }
+              )
+            }
+          )
+        }
+      )
+    }
+
+    // Play Sack cutscene - dramatic impact and pullback
+    const playSackCutscene = (qbPosition: BABYLON.Vector3) => {
+      if (!cameraRef.current) return
+
+      setShowLetterbox(true)
+      setTimeout(() => setCanSkipCutscene(true), 400)
+
+      // Phase 1: Quick zoom to QB with shake
+      const impactEasing = new BABYLON.BackEase(0.5)
+      impactEasing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEOUT)
+
+      animateCameraTo(
+        cameraRef.current.alpha,
+        Math.PI / 2.5,
+        25,
+        qbPosition.add(new BABYLON.Vector3(0, 1.5, 0)),
+        0.4,
+        impactEasing,
+        () => {
+          // Intense shake at impact
+          triggerScreenShake(0.8, 300)
+
+          // Phase 2: Dramatic pullback
+          setTimeout(() => {
+            const pullbackEasing = new BABYLON.SineEase()
+            pullbackEasing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT)
+
+            animateCameraTo(
+              -Math.PI / 2,
+              Math.PI / 2.8,
+              60,
+              new BABYLON.Vector3(0, 0, -2),
+              1.0,
+              pullbackEasing,
+              () => {
+                cutsceneActiveRef.current = "none"
+                setShowLetterbox(false)
+                setCanSkipCutscene(false)
+                setGameState((prev) => ({ ...prev, cutscene: "none" }))
+                originalCameraTargetRef.current = cameraRef.current?.target.clone() || null
+              }
+            )
+          }, 400)
+        }
+      )
+    }
+
+    // Play Interception cutscene - similar to sack but with different focus
+    const playInterceptionCutscene = (ballPosition: BABYLON.Vector3) => {
+      if (!cameraRef.current) return
+
+      setShowLetterbox(true)
+      setTimeout(() => setCanSkipCutscene(true), 400)
+
+      const easing = new BABYLON.ExponentialEase(2)
+      easing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEOUT)
+
+      // Zoom to ball/interception point
+      animateCameraTo(
+        cameraRef.current.alpha + Math.PI / 6,
+        Math.PI / 3,
+        30,
+        ballPosition.add(new BABYLON.Vector3(0, 2, 0)),
+        0.6,
+        easing,
+        () => {
+          triggerScreenShake(0.5, 250)
+
+          setTimeout(() => {
+            const pullbackEasing = new BABYLON.SineEase()
+            pullbackEasing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT)
+
+            animateCameraTo(
+              -Math.PI / 2,
+              Math.PI / 2.8,
+              60,
+              new BABYLON.Vector3(0, 0, -2),
+              0.8,
+              pullbackEasing,
+              () => {
+                cutsceneActiveRef.current = "none"
+                setShowLetterbox(false)
+                setCanSkipCutscene(false)
+                setGameState((prev) => ({ ...prev, cutscene: "none" }))
+                originalCameraTargetRef.current = cameraRef.current?.target.clone() || null
+              }
+            )
+          }, 500)
+        }
+      )
+    }
+
+    // ========== END CUTSCENE ANIMATION SYSTEM ==========
 
     // Throw ball function with improved route-aware targeting
     const throwBall = (receiver: Receiver, clickPoint?: BABYLON.Vector3) => {
@@ -1052,86 +1398,173 @@ export function FootballGame() {
 
     // Handle touchdown
     const handleTouchdown = () => {
+      // Reset to starting position after touchdown
+      lineOfScrimmageRef.current = -15
+      
+      // Get receiver position for cutscene
+      const receiver = receiversRef.current.find((r) => r.data.id === gameStateRef.current.selectedReceiver?.id)
+      const receiverPos = receiver ? receiver.group.position.clone() : (ballRef.current?.position.clone() || new BABYLON.Vector3(0, 0, ENDZONE_Z))
+      
       setGameState((prev) => ({
         ...prev,
         score: prev.score + 7,
+        downs: 1,
+        yardsToGo: 10,
+        lineOfScrimmage: -15,
+        firstDownMarker: -5,
+        cutscene: "touchdown",
         message: "TOUCHDOWN!",
       }))
+      cutsceneActiveRef.current = "touchdown"
       triggerHaptic("success")
-      triggerScreenShake(0.3, 500)
       audioFunctionsRef.current.playTouchdown()
       if (ballRef.current) {
         createCelebrationParticles(ballRef.current.position.clone())
       }
+      
+      // Play touchdown cutscene - will call resetPlay after completion
+      playTouchdownCutscene(receiverPos)
+      
+      // Reset play after cutscene (3 seconds total for cutscene)
       setTimeout(() => {
         setGameState((prev) => ({ ...prev, message: "" }))
         resetPlay()
-      }, 2000)
+      }, 3000)
     }
 
-    // Handle catch
+    // Handle catch - implements first-down chain system
     const handleCatch = () => {
       triggerHaptic("medium")
-      setGameState((prev) => ({ ...prev, message: "COMPLETE!" }))
+      
+      if (!ballRef.current) return
+      
+      const catchPosition = ballRef.current.position.z
+      const currentLOS = lineOfScrimmageRef.current
+      const currentFirstDownMarker = gameStateRef.current.firstDownMarker
       
       // Check if the catch was in the endzone for a touchdown
-      if (ballRef.current && ballRef.current.position.z >= ENDZONE_Z - 3) {
+      if (catchPosition >= ENDZONE_Z - 3) {
+        setGameState((prev) => ({ ...prev, message: "COMPLETE!" }))
         setTimeout(() => handleTouchdown(), 500)
-      } else {
-        // Successful catch but not a touchdown - reset for next down
+        return
+      }
+      
+      // Calculate yards gained
+      const yardsGained = catchPosition - currentLOS
+      
+      // Check if first down achieved
+      if (catchPosition >= currentFirstDownMarker) {
+        // First down! Move the chains
+        const newLOS = catchPosition
+        const newFirstDownMarker = Math.min(newLOS + 10, ENDZONE_Z - 1)
+        const yardsToEndzone = ENDZONE_Z - newLOS
+        const newYardsToGo = Math.round(Math.min(10, yardsToEndzone))
+        
+        // Update the line of scrimmage ref for next play positioning
+        lineOfScrimmageRef.current = newLOS
+        
+        setGameState((prev) => ({ ...prev, message: "FIRST DOWN!" }))
+        triggerHaptic("success")
+        
         setTimeout(() => {
           setGameState((prev) => ({
             ...prev,
-            downs: 1, // Reset downs on successful completion
+            downs: 1,
+            yardsToGo: Math.max(1, newYardsToGo),
+            lineOfScrimmage: newLOS,
+            firstDownMarker: newFirstDownMarker,
             message: "",
           }))
           resetPlay()
         }, 1500)
+      } else {
+        // Short of first down - use a down
+        const newDowns = gameStateRef.current.downs + 1
+        const newYardsToGo = Math.round(currentFirstDownMarker - catchPosition)
+        
+        // Move line of scrimmage to catch position
+        lineOfScrimmageRef.current = catchPosition
+        
+        if (newDowns > 4) {
+          // Turnover on downs!
+          setGameState((prev) => ({ 
+            ...prev, 
+            gameStatus: "gameover", 
+            message: "TURNOVER ON DOWNS!" 
+          }))
+          triggerHaptic("error")
+        } else {
+          setGameState((prev) => ({ ...prev, message: "COMPLETE!" }))
+          
+          setTimeout(() => {
+            setGameState((prev) => ({
+              ...prev,
+              downs: newDowns,
+              yardsToGo: Math.max(1, newYardsToGo),
+              lineOfScrimmage: catchPosition,
+              message: "",
+            }))
+            resetPlay()
+          }, 1500)
+        }
       }
     }
 
-    // Handle interception
+    // Handle interception - immediate turnover (game over)
     const handleInterception = () => {
-      const newDowns = gameStateRef.current.downs + 1
-      if (newDowns > 4) {
-        setGameState((prev) => ({ ...prev, gameStatus: "gameover", message: "INTERCEPTED!" }))
-      } else {
-        setGameState((prev) => ({
-          ...prev,
-          downs: newDowns,
-          message: "INTERCEPTED!",
-        }))
-        setTimeout(() => {
-          setGameState((prev) => ({ ...prev, message: "" }))
-          resetPlay()
-        }, 1500)
-      }
+      const ballPos = ballRef.current?.position.clone() || new BABYLON.Vector3(0, 2, 0)
+      
+      setGameState((prev) => ({ 
+        ...prev, 
+        cutscene: "interception",
+        message: "INTERCEPTED!" 
+      }))
+      cutsceneActiveRef.current = "interception"
       triggerHaptic("error")
-      triggerScreenShake(0.4, 350)
       audioFunctionsRef.current.playSack()
       if (ballRef.current) {
         createCelebrationParticles(ballRef.current.position.clone(), new BABYLON.Color4(1, 0.5, 0, 1))
       }
+      
+      // Play interception cutscene
+      playInterceptionCutscene(ballPos)
+      
+      // Set game over after cutscene
+      setTimeout(() => {
+        setGameState((prev) => ({ 
+          ...prev, 
+          gameStatus: "gameover",
+          cutscene: "none"
+        }))
+      }, 1800)
     }
 
-    // Handle sack
+    // Handle sack - lose a down AND lose yardage (ball spotted where QB was tackled)
     const handleSack = () => {
+      const qbPos = qbRef.current?.position.clone() || new BABYLON.Vector3(0, 0, -15)
       const newDowns = gameStateRef.current.downs + 1
-      if (newDowns > 4) {
-        setGameState((prev) => ({ ...prev, gameStatus: "gameover", message: "SACKED!" }))
-      } else {
-        setGameState((prev) => ({
-          ...prev,
-          downs: newDowns,
-          message: "SACKED!",
-        }))
-        setTimeout(() => {
-          setGameState((prev) => ({ ...prev, message: "" }))
-          resetPlay()
-        }, 1500)
-      }
+      
+      // Calculate yards lost - QB was tackled behind line of scrimmage
+      const currentLOS = lineOfScrimmageRef.current
+      const sackPosition = qbPos.z
+      const yardsLost = Math.round(currentLOS - sackPosition) // Positive number = yards lost
+      
+      // New line of scrimmage is where QB was sacked
+      const newLOS = sackPosition
+      lineOfScrimmageRef.current = newLOS
+      
+      // Yards to go increases by yards lost
+      const currentYardsToGo = gameStateRef.current.yardsToGo
+      const newYardsToGo = Math.round(currentYardsToGo + yardsLost)
+      
+      // Set cutscene state
+      setGameState((prev) => ({
+        ...prev,
+        cutscene: "sack",
+        message: `SACKED! -${yardsLost} YDS`,
+      }))
+      cutsceneActiveRef.current = "sack"
       triggerHaptic("heavy")
-      triggerScreenShake(0.5, 400)
       audioFunctionsRef.current.playSack()
       if (qbRef.current) {
         createCelebrationParticles(
@@ -1139,13 +1572,44 @@ export function FootballGame() {
           new BABYLON.Color4(1, 0.3, 0.3, 1),
         )
       }
+      
+      // Play sack cutscene
+      playSackCutscene(qbPos)
+      
+      // Handle game state after cutscene
+      setTimeout(() => {
+        if (newDowns > 4) {
+          setGameState((prev) => ({ 
+            ...prev, 
+            gameStatus: "gameover", 
+            cutscene: "none",
+            message: "TURNOVER ON DOWNS!" 
+          }))
+          triggerHaptic("error")
+        } else {
+          setGameState((prev) => ({
+            ...prev,
+            downs: newDowns,
+            yardsToGo: Math.max(1, newYardsToGo),
+            lineOfScrimmage: newLOS,
+            cutscene: "none",
+            message: "",
+          }))
+          resetPlay()
+        }
+      }, 1800)
     }
 
-    // Handle incomplete
+    // Handle incomplete - lose a down, no yards gained
     const handleIncomplete = () => {
       const newDowns = gameStateRef.current.downs + 1
       if (newDowns > 4) {
-        setGameState((prev) => ({ ...prev, gameStatus: "gameover", message: "INCOMPLETE!" }))
+        setGameState((prev) => ({ 
+          ...prev, 
+          gameStatus: "gameover", 
+          message: "TURNOVER ON DOWNS!" 
+        }))
+        triggerHaptic("error")
       } else {
         setGameState((prev) => ({
           ...prev,
@@ -1242,6 +1706,7 @@ export function FootballGame() {
     // Game loop
     let lastTime = performance.now()
     let sackTimerAccum = 0
+    let gameStartCutscenePlayed = false
 
     scene.registerBeforeRender(() => {
       const currentTime = performance.now()
@@ -1249,6 +1714,25 @@ export function FootballGame() {
       lastTime = currentTime
 
       if (gameStateRef.current.gameStatus !== "playing") return
+
+      // Check if we need to play game start cutscene
+      if (cutsceneActiveRef.current === "game-start" && !gameStartCutscenePlayed) {
+        gameStartCutscenePlayed = true
+        playGameStartCutscene()
+        return
+      }
+
+      // During cutscenes, only update camera shake but skip gameplay
+      if (cutsceneActiveRef.current !== "none") {
+        // Camera shake during cutscenes
+        if (shakeIntensityRef.current > 0 && cameraRef.current && originalCameraTargetRef.current) {
+          const shakeX = (Math.random() - 0.5) * shakeIntensityRef.current
+          const shakeY = (Math.random() - 0.5) * shakeIntensityRef.current
+          cameraRef.current.target = originalCameraTargetRef.current.add(new BABYLON.Vector3(shakeX, shakeY, 0))
+          shakeIntensityRef.current *= 0.95
+        }
+        return
+      }
 
       // Camera shake
       if (shakeIntensityRef.current > 0 && cameraRef.current && originalCameraTargetRef.current) {
@@ -1373,7 +1857,7 @@ export function FootballGame() {
       // Receiver routes - run intelligent routes with breaks and separation
       receiversRef.current.forEach((r, i) => {
         const routeSpeed = 10
-        const startZ = -10 // Line of scrimmage
+        const startZ = lineOfScrimmageRef.current // Use dynamic line of scrimmage
         const distanceTraveled = r.group.position.z - startZ
         
         // Receivers run forward (positive z direction) from line of scrimmage
@@ -1602,6 +2086,28 @@ export function FootballGame() {
       <canvas ref={canvasRef} className="w-full h-full touch-none" />
 
       {gameState.gameStatus === "playing" && !isDesktop && <VirtualJoystick onMove={handleJoystickMove} />}
+
+      {/* Letterbox overlay for cinematic cutscenes */}
+      <div
+        className={`absolute inset-x-0 top-0 bg-black transition-all duration-500 ease-out pointer-events-none ${
+          showLetterbox ? "h-[12%]" : "h-0"
+        }`}
+      />
+      <div
+        className={`absolute inset-x-0 bottom-0 bg-black transition-all duration-500 ease-out pointer-events-none ${
+          showLetterbox ? "h-[12%]" : "h-0"
+        }`}
+      />
+
+      {/* Skip cutscene button */}
+      {canSkipCutscene && (
+        <button
+          onClick={skipCutscene}
+          className="absolute bottom-[15%] right-4 px-4 py-2 bg-black/60 border border-cyan-500/50 rounded text-cyan-400 text-sm font-medium backdrop-blur-sm hover:bg-cyan-500/20 transition-colors z-50"
+        >
+          Skip →
+        </button>
+      )}
 
       <GameUI
         gameState={gameState}
