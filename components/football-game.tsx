@@ -954,8 +954,12 @@ export function FootballGame() {
       // Update camera to follow the action - center on the play area
       // Camera target should be between LOS and endzone
       const cameraZ = Math.min(los + 10, ENDZONE_Z - 5) // Look ahead of LOS toward endzone
+      // Zoom in more when in red zone (close to endzone)
+      const isRedZone = los >= ENDZONE_Z - 15 // Within 15 yards of endzone
+      const cameraRadius = isRedZone ? 45 : 60 // Closer camera for red zone
       if (cameraRef.current) {
         cameraRef.current.target = new BABYLON.Vector3(0, 0, cameraZ)
+        cameraRef.current.radius = cameraRadius
         originalCameraTargetRef.current = cameraRef.current.target.clone()
       }
 
@@ -1373,10 +1377,17 @@ export function FootballGame() {
         
         // Lead the receiver along their route direction
         // Use the actual velocity direction, not just forward
-        // IMPROVED: Increase lead factor for endzone throws (from 0.75 to 0.85) to help reach TD zone
-        const leadFactor = receiverPos.z >= ENDZONE_Z - 10 ? 0.95 : 0.75 // More lead when near endzone
+        // Lead the receiver - throw where they WILL be, not where they are
+        // IMPROVED: Increase lead factor significantly for endzone throws
+        const inRedZone = receiverPos.z >= ENDZONE_Z - 15
+        const leadFactor = inRedZone ? 1.2 : 0.85 // Much more lead when in red zone
         let leadX = receiverPos.x + velocity.x * flightTime * leadFactor
         let leadZ = receiverPos.z + velocity.z * flightTime * leadFactor
+        
+        // If near endzone, bias throw INTO the endzone
+        if (receiverPos.z >= ENDZONE_Z - 10) {
+          leadZ = Math.max(leadZ, ENDZONE_Z - 2) // Force throw to at least endzone edge
+        }
         
         // If a click point was provided, bias the throw toward the click direction
         // This helps when the user clicks ahead of the receiver on their route
@@ -1911,15 +1922,18 @@ export function FootballGame() {
         
         // Receivers run forward (positive z direction) from line of scrimmage
         if (r.group.position.z < RECEIVER_MAX_ENDZONE_DEPTH) {
-          // ENDZONE PRIORITY: When close to endzone, run straight to it - INCREASED range from 8 to 12 yards
-          if (yardsToEndzone <= 12) {
-            // Near the endzone - run a fade/streak to get DEEP into endzone for TD
-            r.group.position.z += routeSpeed * 1.2 * delta // Increased speed to get into endzone faster
-            // Slight drift toward the center of the endzone
-            if (r.group.position.x < 0) {
-              r.group.position.x += routeSpeed * 0.15 * delta
-            } else {
-              r.group.position.x -= routeSpeed * 0.15 * delta
+          // RED ZONE SPECIAL ROUTES: When close to endzone, SPRINT to it
+          if (yardsToEndzone <= 20) {
+            // Near endzone - run FAST straight routes to get into TD position
+            // Sprint speed increases as they get closer to endzone
+            const sprintMultiplier = yardsToEndzone <= 5 ? 1.0 : 1.5 // Slow down once in endzone
+            r.group.position.z += routeSpeed * sprintMultiplier * delta
+            
+            // Drift toward center for easier catches
+            if (r.group.position.x < -3) {
+              r.group.position.x += routeSpeed * 0.3 * delta
+            } else if (r.group.position.x > 3) {
+              r.group.position.x -= routeSpeed * 0.3 * delta
             }
           } else if (i === 0) {
             // WR1 - Post/Corner route: Run vertical, then break diagonally
@@ -2092,14 +2106,20 @@ export function FootballGame() {
           const receiver = receiversRef.current.find((r) => r.data.id === gameStateRef.current.selectedReceiver?.id)
           if (receiver) {
             const distToReceiver = BABYLON.Vector3.Distance(ballRef.current.position, receiver.group.position)
-            const isCatchable = distToReceiver < 5 // Increased from 3.5 for more forgiving catches
+            // VERY forgiving catches - especially in endzone
+            const isInEndzone = receiver.group.position.z >= ENDZONE_Z - 5 // Expanded endzone detection
+            const catchRadius = isInEndzone ? 10 : 7 // Much bigger catch radius
+            const isCatchable = distToReceiver < catchRadius
 
             if (isCatchable) {
-              const catchChance = receiver.data.isOpen ? 0.95 : 0.55 // Increased contested catch chance from 0.35
+              // Near-guaranteed catches in endzone, high rate elsewhere
+              const baseCatchChance = receiver.data.isOpen ? 0.99 : 0.80
+              const catchChance = isInEndzone ? 0.99 : baseCatchChance // 99% in endzone
               if (Math.random() < catchChance) {
                 handleCatch()
               } else {
-                handleInterception()
+                // Failed catch is incomplete, not interception (less punishing)
+                handleIncomplete()
               }
             } else {
               handleIncomplete()
