@@ -13,6 +13,7 @@ export interface GameState {
   score: number
   downs: number
   yardsToGo: number
+  yardsToTouchdown: number
   lineOfScrimmage: number
   firstDownMarker: number
   sackTimer: number

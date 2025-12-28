@@ -141,7 +141,15 @@ export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggl
           <div className="flex-1 bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 border-fuchsia-500/50 rounded-xl px-3 py-2 shadow-lg shadow-fuchsia-500/20">
             <div className="text-[10px] text-fuchsia-400 uppercase tracking-widest font-bold text-center">Down</div>
             <div className="text-2xl font-black text-white text-center leading-none mt-1">
-              {gameState.downs}<span className="text-lg text-zinc-400">&</span>{Math.round(gameState.yardsToGo)}
+              {gameState.downs}<span className="text-lg text-zinc-400">/</span>4
+            </div>
+          </div>
+
+          {/* Yards to Touchdown */}
+          <div className="flex-1 bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 border-emerald-500/50 rounded-xl px-3 py-2 shadow-lg shadow-emerald-500/20">
+            <div className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold text-center">To TD</div>
+            <div className="text-2xl font-black text-emerald-400 text-center leading-none mt-1">
+              {gameState.yardsToTouchdown}<span className="text-sm text-zinc-400">yd</span>
             </div>
           </div>
 

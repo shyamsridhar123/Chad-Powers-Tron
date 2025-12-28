@@ -15,6 +15,13 @@ const FIELD_MIN_Z = -28 // adjusted for larger field
 const FIELD_MAX_Z = 28 // adjusted for larger field
 const ENDZONE_Z = 25 // adjusted for larger field
 
+// Convert Z position to yards to touchdown (endzone starts at ENDZONE_Z - 3 = 22)
+const getYardsToTouchdown = (zPos: number): number => {
+  const endzoneStart = ENDZONE_Z - 3 // 22
+  const yardsToTD = Math.max(0, Math.round(endzoneStart - zPos))
+  return yardsToTD
+}
+
 const triggerHaptic = (type: "light" | "medium" | "heavy" | "success" | "error") => {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     switch (type) {
@@ -65,6 +72,7 @@ export function FootballGame() {
     score: 0,
     downs: 1,
     yardsToGo: 10,
+    yardsToTouchdown: 40,
     lineOfScrimmage: -15,
     firstDownMarker: -5,
     gameStatus: "menu",
@@ -369,21 +377,42 @@ export function FootballGame() {
       offenseEZMat.emissiveColor = new BABYLON.Color3(0, 0, 0)
       offenseEndzone.material = offenseEZMat
 
+      // TOUCHDOWN ZONE - Bright, unmistakable scoring area
       const defenseEndzone = BABYLON.MeshBuilder.CreateGround("defenseEZ", { width: fieldWidth, height: 6 }, scene)
-      defenseEndzone.position = new BABYLON.Vector3(0, 0.001, ENDZONE_Z)
+      defenseEndzone.position = new BABYLON.Vector3(0, 0.002, ENDZONE_Z)
       const defenseEZMat = new BABYLON.StandardMaterial("defenseEZMat", scene)
-      defenseEZMat.diffuseColor = new BABYLON.Color3(0.15, 0.4, 0.15) // Brighter green for scoring zone
-      defenseEZMat.emissiveColor = new BABYLON.Color3(0.05, 0.15, 0.05) // Subtle glow
+      defenseEZMat.diffuseColor = new BABYLON.Color3(0, 0.6, 0.3) // Bright green
+      defenseEZMat.emissiveColor = new BABYLON.Color3(0, 0.3, 0.15) // Strong glow
       defenseEndzone.material = defenseEZMat
       
-      // Add "SCORE" text indicator in endzone
-      const endzoneMarker = BABYLON.MeshBuilder.CreateBox("endzoneMarker", { width: 8, height: 0.05, depth: 0.4 }, scene)
-      endzoneMarker.position = new BABYLON.Vector3(0, 0.03, ENDZONE_Z)
+      // Goal line - bright glowing line at the front of the endzone
+      const goalLine = BABYLON.MeshBuilder.CreateBox("goalLine", { width: fieldWidth, height: 0.08, depth: 0.5 }, scene)
+      goalLine.position = new BABYLON.Vector3(0, 0.04, ENDZONE_Z - 3)
+      const goalLineMat = new BABYLON.StandardMaterial("goalLineMat", scene)
+      goalLineMat.diffuseColor = new BABYLON.Color3(1, 1, 1)
+      goalLineMat.emissiveColor = new BABYLON.Color3(0.5, 1, 0.5)
+      goalLine.material = goalLineMat
+      glowLayer.addIncludedOnlyMesh(goalLine)
+      
+      // Endzone center marker - pulsing target
+      const endzoneMarker = BABYLON.MeshBuilder.CreateTorus("endzoneMarker", { diameter: 6, thickness: 0.5, tessellation: 32 }, scene)
+      endzoneMarker.position = new BABYLON.Vector3(0, 0.1, ENDZONE_Z)
+      endzoneMarker.rotation.x = Math.PI / 2
       const endzoneMarkerMat = new BABYLON.StandardMaterial("endzoneMarkerMat", scene)
       endzoneMarkerMat.diffuseColor = new BABYLON.Color3(0, 1, 0.5)
-      endzoneMarkerMat.emissiveColor = new BABYLON.Color3(0, 0.5, 0.25)
+      endzoneMarkerMat.emissiveColor = new BABYLON.Color3(0, 0.8, 0.4)
       endzoneMarker.material = endzoneMarkerMat
       glowLayer.addIncludedOnlyMesh(endzoneMarker)
+      
+      // Second ring for visual depth
+      const endzoneMarker2 = BABYLON.MeshBuilder.CreateTorus("endzoneMarker2", { diameter: 10, thickness: 0.3, tessellation: 32 }, scene)
+      endzoneMarker2.position = new BABYLON.Vector3(0, 0.05, ENDZONE_Z)
+      endzoneMarker2.rotation.x = Math.PI / 2
+      const endzoneMarker2Mat = new BABYLON.StandardMaterial("endzoneMarker2Mat", scene)
+      endzoneMarker2Mat.diffuseColor = new BABYLON.Color3(0, 0.8, 0.4)
+      endzoneMarker2Mat.emissiveColor = new BABYLON.Color3(0, 0.4, 0.2)
+      endzoneMarker2.material = endzoneMarker2Mat
+      glowLayer.addIncludedOnlyMesh(endzoneMarker2)
 
       const ezLinePositions = [-ENDZONE_Z - 3, ENDZONE_Z + 3]
       ezLinePositions.forEach((z, i) => {
@@ -1365,9 +1394,9 @@ export function FootballGame() {
           }
         }
         
-        // Clamp to field boundaries
+        // Clamp to field boundaries but allow throws INTO the endzone
         leadX = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, leadX))
-        leadZ = Math.min(ENDZONE_Z - 1, Math.max(receiverPos.z, leadZ))
+        leadZ = Math.min(ENDZONE_Z + 2, Math.max(receiverPos.z, leadZ)) // Allow throws into endzone
 
         const targetPos = new BABYLON.Vector3(leadX, 1.5, leadZ)
 
@@ -1439,14 +1468,16 @@ export function FootballGame() {
       
       if (!ballRef.current) return
       
-      const catchPosition = ballRef.current.position.z
+      // Get the targeted receiver's position for accurate touchdown detection
+      const receiver = receiversRef.current.find((r) => r.data.id === gameStateRef.current.selectedReceiver?.id)
+      const catchPosition = receiver ? receiver.group.position.z : ballRef.current.position.z
       const currentLOS = lineOfScrimmageRef.current
       const currentFirstDownMarker = gameStateRef.current.firstDownMarker
       
-      // Check if the catch was in the endzone for a touchdown
+      // Check if the catch was in the endzone for a touchdown (ENDZONE_Z - 3 = 22)
       if (catchPosition >= ENDZONE_Z - 3) {
-        setGameState((prev) => ({ ...prev, message: "COMPLETE!" }))
-        setTimeout(() => handleTouchdown(), 500)
+        // TOUCHDOWN! Don't show COMPLETE, go straight to touchdown
+        handleTouchdown()
         return
       }
       
@@ -1460,6 +1491,7 @@ export function FootballGame() {
         const newFirstDownMarker = Math.min(newLOS + 10, ENDZONE_Z - 1)
         const yardsToEndzone = ENDZONE_Z - newLOS
         const newYardsToGo = Math.round(Math.min(10, yardsToEndzone))
+        const newYardsToTD = getYardsToTouchdown(newLOS)
         
         // Update the line of scrimmage ref for next play positioning
         lineOfScrimmageRef.current = newLOS
@@ -1472,6 +1504,7 @@ export function FootballGame() {
             ...prev,
             downs: 1,
             yardsToGo: Math.max(1, newYardsToGo),
+            yardsToTouchdown: newYardsToTD,
             lineOfScrimmage: newLOS,
             firstDownMarker: newFirstDownMarker,
             message: "",
@@ -1482,6 +1515,7 @@ export function FootballGame() {
         // Short of first down - use a down
         const newDowns = gameStateRef.current.downs + 1
         const newYardsToGo = Math.round(currentFirstDownMarker - catchPosition)
+        const newYardsToTD = getYardsToTouchdown(catchPosition)
         
         // Move line of scrimmage to catch position
         lineOfScrimmageRef.current = catchPosition
@@ -1502,6 +1536,7 @@ export function FootballGame() {
               ...prev,
               downs: newDowns,
               yardsToGo: Math.max(1, newYardsToGo),
+              yardsToTouchdown: newYardsToTD,
               lineOfScrimmage: catchPosition,
               message: "",
             }))
@@ -1518,29 +1553,17 @@ export function FootballGame() {
       
       const ballPos = ballRef.current?.position.clone() || new BABYLON.Vector3(0, 2, 0)
       
+      // Immediately set game over state
       setGameState((prev) => ({ 
         ...prev, 
-        cutscene: "interception",
+        gameStatus: "gameover",
         message: "INTERCEPTED!" 
       }))
-      cutsceneActiveRef.current = "interception"
       triggerHaptic("error")
       audioFunctionsRef.current.playSack()
       if (ballRef.current) {
         createCelebrationParticles(ballRef.current.position.clone(), new BABYLON.Color4(1, 0.5, 0, 1))
       }
-      
-      // Play interception cutscene
-      playInterceptionCutscene(ballPos)
-      
-      // Set game over after cutscene
-      setTimeout(() => {
-        setGameState((prev) => ({ 
-          ...prev, 
-          gameStatus: "gameover",
-          cutscene: "none"
-        }))
-      }, 1800)
     }
 
     // Handle sack - lose a down AND lose yardage (ball spotted where QB was tackled)
@@ -1563,6 +1586,7 @@ export function FootballGame() {
       // Yards to go increases by yards lost
       const currentYardsToGo = gameStateRef.current.yardsToGo
       const newYardsToGo = Math.round(currentYardsToGo + yardsLost)
+      const newYardsToTD = getYardsToTouchdown(newLOS)
       
       // Set cutscene state
       setGameState((prev) => ({
@@ -1598,6 +1622,7 @@ export function FootballGame() {
             ...prev,
             downs: newDowns,
             yardsToGo: Math.max(1, newYardsToGo),
+            yardsToTouchdown: newYardsToTD,
             lineOfScrimmage: newLOS,
             cutscene: "none",
             message: "",
@@ -1869,10 +1894,21 @@ export function FootballGame() {
         const routeSpeed = 10
         const startZ = lineOfScrimmageRef.current // Use dynamic line of scrimmage
         const distanceTraveled = r.group.position.z - startZ
+        const yardsToEndzone = ENDZONE_Z - r.group.position.z
         
         // Receivers run forward (positive z direction) from line of scrimmage
         if (r.group.position.z < ENDZONE_Z - 1) {
-          if (i === 0) {
+          // ENDZONE PRIORITY: When close to endzone, run straight to it
+          if (yardsToEndzone <= 8) {
+            // Near the endzone - run a fade/streak to get in
+            r.group.position.z += routeSpeed * delta
+            // Slight drift toward the center of the endzone
+            if (r.group.position.x < 0) {
+              r.group.position.x += routeSpeed * 0.2 * delta
+            } else {
+              r.group.position.x -= routeSpeed * 0.2 * delta
+            }
+          } else if (i === 0) {
             // WR1 - Post/Corner route: Run vertical, then break diagonally
             const breakPoint = 8 // Break after 8 yards
             
@@ -1888,12 +1924,12 @@ export function FootballGame() {
               
               if (defenderInside) {
                 // Defender is inside - run a corner route (break outside toward sideline)
-                r.group.position.z += routeSpeed * 0.6 * delta
-                r.group.position.x -= routeSpeed * 0.8 * delta // Strong outside cut
+                r.group.position.z += routeSpeed * 0.7 * delta // Increased forward speed
+                r.group.position.x -= routeSpeed * 0.6 * delta
               } else {
                 // Defender is outside - run a post route (break inside toward middle)
-                r.group.position.z += routeSpeed * 0.6 * delta
-                r.group.position.x += routeSpeed * 0.7 * delta // Strong inside cut
+                r.group.position.z += routeSpeed * 0.75 * delta // Increased forward speed
+                r.group.position.x += routeSpeed * 0.5 * delta
               }
             }
           } else {
@@ -1907,26 +1943,24 @@ export function FootballGame() {
               r.group.position.x -= routeSpeed * 0.1 * delta
             } else {
               // Phase 2: Break on the route - check defender position
-              // WR2 is on the right side (positive x), so:
-              // - defender.x < receiver.x means defender is INSIDE (toward center/left)
-              // - defender.x > receiver.x means defender is OUTSIDE (toward right sideline)
               const defender = defendersRef.current[3] // corner defender for WR2
               const defenderInside = defender && defender.group.position.x < r.group.position.x
               
               if (defenderInside) {
-                // Defender is inside (between receiver and center) - run out route toward sideline
-                r.group.position.z += routeSpeed * 0.4 * delta
-                r.group.position.x += routeSpeed * 0.9 * delta // Sharp outside cut (toward right sideline)
+                // Defender is inside - run out route toward sideline with more depth
+                r.group.position.z += routeSpeed * 0.6 * delta // Increased forward speed
+                r.group.position.x += routeSpeed * 0.7 * delta
               } else {
-                // Defender is outside or unknown - run slant route toward center
-                r.group.position.z += routeSpeed * 0.5 * delta
-                r.group.position.x -= routeSpeed * 0.85 * delta // Sharp inside cut (toward center)
+                // Defender is outside - run slant route toward center
+                r.group.position.z += routeSpeed * 0.7 * delta // Increased forward speed
+                r.group.position.x -= routeSpeed * 0.6 * delta
               }
             }
           }
         }
 
-        r.group.position.z = Math.min(ENDZONE_Z - 1, r.group.position.z)
+        // Allow receivers to run INTO the endzone (ENDZONE_Z + 2 = 27)
+        r.group.position.z = Math.min(ENDZONE_Z + 2, r.group.position.z)
         r.group.position.x = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, r.group.position.x))
 
         r.data.position = { x: r.group.position.x, z: r.group.position.z }
