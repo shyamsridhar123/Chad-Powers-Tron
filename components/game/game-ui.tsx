@@ -3,6 +3,7 @@
 import type { GameState } from "./types"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
+import { useIsDesktop } from "@/lib/use-device"
 
 interface GameUIProps {
   gameState: GameState
@@ -13,6 +14,8 @@ interface GameUIProps {
 }
 
 export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggleMute }: GameUIProps) {
+  const isDesktop = useIsDesktop()
+
   if (gameState.gameStatus === "menu") {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-black via-zinc-950 to-black p-4 pt-safe pb-safe">
@@ -33,25 +36,25 @@ export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggl
             </div>
           </div>
 
-          {/* Instructions - updated to reflect tap on receivers */}
+          {/* Instructions - show different controls for desktop vs mobile */}
           <div className="space-y-3 text-left bg-black/60 rounded-2xl p-5 border border-fuchsia-500/40 shadow-lg shadow-fuchsia-500/10">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/30">
-                <span className="text-2xl">🕹️</span>
+                <span className="text-2xl">{isDesktop ? "⌨️" : "🕹️"}</span>
               </div>
               <div>
                 <p className="text-white font-bold text-lg">Move QB</p>
-                <p className="text-zinc-400 text-sm">Use joystick to scramble</p>
+                <p className="text-zinc-400 text-sm">{isDesktop ? "WASD keys to scramble" : "Use joystick to scramble"}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/30">
-                <span className="text-2xl">👆</span>
+                <span className="text-2xl">{isDesktop ? "🖱️" : "👆"}</span>
               </div>
               <div>
-                <p className="text-white font-bold text-lg">Tap Receiver</p>
-                <p className="text-zinc-400 text-sm">Tap the glowing ring to throw</p>
+                <p className="text-white font-bold text-lg">{isDesktop ? "Click Receiver" : "Tap Receiver"}</p>
+                <p className="text-zinc-400 text-sm">{isDesktop ? "Click the glowing ring to throw" : "Tap the glowing ring to throw"}</p>
               </div>
             </div>
 

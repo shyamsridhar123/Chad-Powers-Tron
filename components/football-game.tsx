@@ -6,6 +6,7 @@ import { GameUI } from "./game/game-ui"
 import { VirtualJoystick } from "./game/virtual-joystick"
 import type { GameState, Receiver } from "./game/types"
 import { useAudioManager } from "./game/audio-manager"
+import { useIsDesktop } from "@/lib/use-device"
 
 const FIELD_WIDTH = 36 // increased from 24 to 36
 const FIELD_LENGTH = 60 // increased from 40 to 60
@@ -77,8 +78,10 @@ export function FootballGame() {
 
   const gameStateRef = useRef(gameState)
   const joystickRef = useRef({ x: 0, y: 0 })
+  const keyboardRef = useRef({ w: false, a: false, s: false, d: false })
   const playStartedRef = useRef(false)
   const ballThrownRef = useRef(false)
+  const isDesktop = useIsDesktop()
   const ballTargetRef = useRef<BABYLON.Vector3 | null>(null)
   const animationTimeRef = useRef(0)
   const shakeIntensityRef = useRef(0)
@@ -102,6 +105,37 @@ export function FootballGame() {
   useEffect(() => {
     audioFunctionsRef.current = { playTouchdown, playSack, playThrow }
   }, [playTouchdown, playSack, playThrow])
+
+  // Keyboard controls for desktop
+  useEffect(() => {
+    if (!isDesktop) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      if (key === "w" || key === "a" || key === "s" || key === "d") {
+        keyboardRef.current[key as "w" | "a" | "s" | "d"] = true
+        // Start play on first keypress
+        if (!playStartedRef.current && gameStateRef.current.gameStatus === "playing") {
+          playStartedRef.current = true
+        }
+      }
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      if (key === "w" || key === "a" || key === "s" || key === "d") {
+        keyboardRef.current[key as "w" | "a" | "s" | "d"] = false
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+    }
+  }, [isDesktop])
 
   const handleJoystickMove = useCallback((x: number, y: number) => {
     joystickRef.current = { x, y }
@@ -869,6 +903,62 @@ export function FootballGame() {
       }))
     }
 
+    // Calculate receiver's current velocity based on their route
+    const getReceiverVelocity = (receiverIndex: number, receiverPos: BABYLON.Vector3): BABYLON.Vector3 => {
+      const routeSpeed = 10
+      const startZ = -10 // Line of scrimmage
+      const distanceTraveled = receiverPos.z - startZ
+      
+      let velocityX = 0
+      let velocityZ = routeSpeed
+      
+      if (receiverIndex === 0) {
+        // WR1 - Post/Corner route
+        const breakPoint = 8
+        if (distanceTraveled < breakPoint) {
+          // Stem phase - mostly vertical with slight outside release
+          velocityZ = routeSpeed
+          velocityX = -routeSpeed * 0.1
+        } else {
+          // Post-break phase - check defender to determine route direction
+          const defender = defendersRef.current[2]
+          const defenderInside = defender && defender.group.position.x > receiverPos.x
+          if (defenderInside) {
+            // Corner route (outside)
+            velocityZ = routeSpeed * 0.6
+            velocityX = -routeSpeed * 0.8
+          } else {
+            // Post route (inside)
+            velocityZ = routeSpeed * 0.6
+            velocityX = routeSpeed * 0.7
+          }
+        }
+      } else {
+        // WR2 - Out/Slant route
+        const breakPoint = 6
+        if (distanceTraveled < breakPoint) {
+          // Stem phase
+          velocityZ = routeSpeed
+          velocityX = -routeSpeed * 0.1
+        } else {
+          // Post-break phase
+          const defender = defendersRef.current[3]
+          const defenderInside = defender && defender.group.position.x < receiverPos.x
+          if (defenderInside) {
+            // Out route (toward right sideline)
+            velocityZ = routeSpeed * 0.4
+            velocityX = routeSpeed * 0.9
+          } else {
+            // Slant route (toward center)
+            velocityZ = routeSpeed * 0.5
+            velocityX = -routeSpeed * 0.85
+          }
+        }
+      }
+      
+      return new BABYLON.Vector3(velocityX, 0, velocityZ)
+    }
+
     // Screen shake
     const triggerScreenShake = (intensity: number, duration: number) => {
       shakeIntensityRef.current = intensity
@@ -880,8 +970,8 @@ export function FootballGame() {
       }, duration)
     }
 
-    // Throw ball function
-    const throwBall = (receiver: Receiver) => {
+    // Throw ball function with improved route-aware targeting
+    const throwBall = (receiver: Receiver, clickPoint?: BABYLON.Vector3) => {
       if (ballThrownRef.current || !ballRef.current || !qbRef.current) return
 
       setGameState((prev) => ({ ...prev, selectedReceiver: receiver }))
@@ -889,27 +979,58 @@ export function FootballGame() {
 
       const targetReceiver = receiversRef.current.find((r) => r.data.id === receiver.id)
       if (targetReceiver) {
-        const receiverVelocity = 10
-        const distance = BABYLON.Vector3.Distance(ballRef.current.position, targetReceiver.group.position)
-        const ballSpeed = 32 // Slower ball for more playable experience
+        const receiverIndex = receiversRef.current.indexOf(targetReceiver)
+        const receiverPos = targetReceiver.group.position.clone()
+        
+        // Get the receiver's current velocity direction based on their route
+        const velocity = getReceiverVelocity(receiverIndex, receiverPos)
+        const velocityMagnitude = velocity.length()
+        
+        // Calculate ball flight parameters
+        const distance = BABYLON.Vector3.Distance(ballRef.current.position, receiverPos)
+        const ballSpeed = 32
         const flightTime = distance / ballSpeed
+        
+        // Lead the receiver along their route direction
+        // Use the actual velocity direction, not just forward
+        let leadX = receiverPos.x + velocity.x * flightTime * 0.75
+        let leadZ = receiverPos.z + velocity.z * flightTime * 0.75
+        
+        // If a click point was provided, bias the throw toward the click direction
+        // This helps when the user clicks ahead of the receiver on their route
+        if (clickPoint) {
+          const clickDirection = clickPoint.subtract(receiverPos)
+          clickDirection.y = 0
+          
+          // Check if click is generally aligned with receiver's route direction
+          if (clickDirection.length() > 0.1) {
+            clickDirection.normalize()
+            const routeDirection = velocity.clone().normalize()
+            
+            // Dot product to see if click aligns with route (1 = same direction, -1 = opposite)
+            const alignment = BABYLON.Vector3.Dot(clickDirection, routeDirection)
+            
+            // If click is ahead of receiver in their route direction, add extra lead
+            if (alignment > 0.3) {
+              const clickDistance = BABYLON.Vector3.Distance(clickPoint, receiverPos)
+              const extraLead = Math.min(clickDistance * 0.5, velocityMagnitude * flightTime * 0.3)
+              leadX += routeDirection.x * extraLead
+              leadZ += routeDirection.z * extraLead
+            }
+          }
+        }
+        
+        // Clamp to field boundaries
+        leadX = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, leadX))
+        leadZ = Math.min(ENDZONE_Z - 1, Math.max(receiverPos.z, leadZ))
 
-        // Lead the receiver more accurately - aim slightly ahead of where they're running
-        // Reduced lead factor for better accuracy
-        const leadZ = Math.min(targetReceiver.group.position.z + receiverVelocity * flightTime * 0.65, ENDZONE_Z - 1)
-        const leadX = targetReceiver.group.position.x
-
-        const targetPos = new BABYLON.Vector3(
-          Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, leadX)),
-          1.5,
-          leadZ,
-        )
+        const targetPos = new BABYLON.Vector3(leadX, 1.5, leadZ)
 
         ballTargetRef.current = targetPos
 
         const throwDistance = BABYLON.Vector3.Distance(ballRef.current.position, targetPos)
         const flightDuration = throwDistance / ballSpeed
-        const maxHeight = 1.5 + throwDistance * 0.08 // Higher arc for more realistic trajectory
+        const maxHeight = 1.5 + throwDistance * 0.08
 
         ballFlightRef.current = {
           startPos: ballRef.current.position.clone(),
@@ -1046,38 +1167,74 @@ export function FootballGame() {
     scene.onPointerDown = (_evt, pickResult) => {
       if (gameStateRef.current.gameStatus !== "playing" || ballThrownRef.current) return
 
+      const clickPoint = pickResult.hit && pickResult.pickedPoint ? pickResult.pickedPoint.clone() : undefined
+
       if (pickResult.hit && pickResult.pickedMesh) {
         const hitMesh = pickResult.pickedMesh
         for (const receiver of receiversRef.current) {
           const hitArea = (receiver.group as any).hitArea
           if (hitMesh === hitArea || hitMesh.parent === receiver.group) {
             triggerHaptic("medium")
-            throwBall(receiver.data)
+            throwBall(receiver.data, clickPoint)
             return
           }
         }
       }
 
-      // Proximity-based throw assist - increased radius for easier targeting
+      // Proximity-based throw assist - finds closest receiver to click point
+      // Also considers if click direction aligns with receiver's route for better targeting
       if (pickResult.hit && pickResult.pickedPoint) {
         const tapPoint = pickResult.pickedPoint
-        let closestReceiver: (typeof receiversRef.current)[0] | null = null
-        let closestDist = 12 // Increased from 8 for easier throw targeting
+        let bestReceiver: (typeof receiversRef.current)[0] | null = null
+        let bestScore = Infinity
 
-        for (const receiver of receiversRef.current) {
+        for (let i = 0; i < receiversRef.current.length; i++) {
+          const receiver = receiversRef.current[i]
+          const receiverPos = receiver.group.position
+          
+          // Calculate distance to receiver
           const dist = BABYLON.Vector3.Distance(
             new BABYLON.Vector3(tapPoint.x, 0, tapPoint.z),
-            new BABYLON.Vector3(receiver.group.position.x, 0, receiver.group.position.z),
+            new BABYLON.Vector3(receiverPos.x, 0, receiverPos.z),
           )
-          if (dist < closestDist) {
-            closestDist = dist
-            closestReceiver = receiver
+          
+          // Get receiver's velocity direction
+          const velocity = getReceiverVelocity(i, receiverPos)
+          const routeDir = velocity.clone().normalize()
+          
+          // Calculate direction from receiver to click
+          const toClick = tapPoint.subtract(receiverPos)
+          toClick.y = 0
+          const clickDist = toClick.length()
+          
+          if (clickDist > 0.1) {
+            toClick.normalize()
+            
+            // Bonus for clicking ahead of receiver on their route
+            const alignment = BABYLON.Vector3.Dot(toClick, routeDir)
+            
+            // Score combines distance and route alignment
+            // Lower score = better match
+            // If click is ahead on route (alignment > 0), reduce score
+            let score = dist
+            if (alignment > 0 && clickDist < 15) {
+              // Click is ahead on the route - this is a good throw target
+              score = dist * (1 - alignment * 0.5)
+            }
+            
+            if (score < bestScore && dist < 15) {
+              bestScore = score
+              bestReceiver = receiver
+            }
+          } else if (dist < bestScore && dist < 15) {
+            bestScore = dist
+            bestReceiver = receiver
           }
         }
 
-        if (closestReceiver) {
+        if (bestReceiver) {
           triggerHaptic("medium")
-          throwBall(closestReceiver.data)
+          throwBall(bestReceiver.data, clickPoint)
         }
       }
     }
@@ -1118,11 +1275,24 @@ export function FootballGame() {
         })
       }
 
-      // QB movement
+      // QB movement - merge joystick and keyboard inputs
       if (qbRef.current && !ballThrownRef.current) {
         const moveSpeed = 6
-        qbRef.current.position.x += joystickRef.current.x * moveSpeed * delta
-        qbRef.current.position.z -= joystickRef.current.y * moveSpeed * delta
+        
+        // Calculate keyboard input (-1 to 1 for each axis)
+        let keyboardX = 0
+        let keyboardY = 0
+        if (keyboardRef.current.a) keyboardX -= 1
+        if (keyboardRef.current.d) keyboardX += 1
+        if (keyboardRef.current.w) keyboardY += 1
+        if (keyboardRef.current.s) keyboardY -= 1
+        
+        // Use whichever input is stronger (joystick or keyboard)
+        const inputX = Math.abs(joystickRef.current.x) > Math.abs(keyboardX) ? joystickRef.current.x : keyboardX
+        const inputY = Math.abs(joystickRef.current.y) > Math.abs(keyboardY) ? joystickRef.current.y : keyboardY
+        
+        qbRef.current.position.x += inputX * moveSpeed * delta
+        qbRef.current.position.z -= inputY * moveSpeed * delta
 
         qbRef.current.position.x = Math.max(
           -FIELD_HALF_WIDTH + 1,
@@ -1137,7 +1307,7 @@ export function FootballGame() {
 
         const qb = qbRef.current as any
         if (qb.leftLegGroup && qb.rightLegGroup && qb.leftArmGroup && qb.rightArmGroup) {
-          const isMoving = Math.abs(joystickRef.current.x) > 0.1 || Math.abs(joystickRef.current.y) > 0.1
+          const isMoving = Math.abs(inputX) > 0.1 || Math.abs(inputY) > 0.1
           if (isMoving) {
             animatePlayer(
               qb.leftLegGroup,
@@ -1431,7 +1601,7 @@ export function FootballGame() {
     <div className="relative w-full h-dvh bg-black overflow-hidden">
       <canvas ref={canvasRef} className="w-full h-full touch-none" />
 
-      {gameState.gameStatus === "playing" && <VirtualJoystick onMove={handleJoystickMove} />}
+      {gameState.gameStatus === "playing" && !isDesktop && <VirtualJoystick onMove={handleJoystickMove} />}
 
       <GameUI
         gameState={gameState}
