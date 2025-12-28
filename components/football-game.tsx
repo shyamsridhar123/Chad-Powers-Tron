@@ -77,8 +77,8 @@ export function FootballGame() {
     selectedReceiver: null,
   })
   const [uiReceivers, setUiReceivers] = useState<Receiver[]>([
-    { id: "wr1", position: { x: -8, z: -10 }, isOpen: true },
-    { id: "wr2", position: { x: 8, z: -10 }, isOpen: true },
+    { id: "wr1", position: { x: -8, z: -15 }, isOpen: true },
+    { id: "wr2", position: { x: 8, z: -15 }, isOpen: true },
   ])
 
   const { isMuted, toggleMute, playTouchdown, playSack, playThrow, ensureAudioReady } = useAudioManager(
