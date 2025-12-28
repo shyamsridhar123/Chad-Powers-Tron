@@ -705,8 +705,13 @@ export function FootballGame() {
     // Create offensive line
     const linePositions = [-FIELD_HALF_WIDTH / 2, FIELD_HALF_WIDTH / 2]
     offenseLineRef.current = linePositions.map((x) => {
-      const { group } = createPlayer(new BABYLON.Vector3(x, 0, -10), "#00aaaa", "#001122", false, false, true)
+      const { group, leftLegGroup, rightLegGroup, leftArmGroup, rightArmGroup } = createPlayer(new BABYLON.Vector3(x, 0, -10), "#00aaaa", "#001122", false, false, true)
       group.rotation.y = 0
+      // Store limb references for animation
+      ;(group as any).leftLegGroup = leftLegGroup
+      ;(group as any).rightLegGroup = rightLegGroup
+      ;(group as any).leftArmGroup = leftArmGroup
+      ;(group as any).rightArmGroup = rightArmGroup
       return group
     })
 
@@ -833,6 +838,13 @@ export function FootballGame() {
       offenseLineRef.current.forEach((l, i) => {
         l.position = new BABYLON.Vector3(linePositions2[i], 0, -10)
         l.rotation.y = 0
+        
+        // Reset lineman animation state
+        const oline = l as any
+        if (oline.leftLegGroup) oline.leftLegGroup.rotation.x = 0
+        if (oline.rightLegGroup) oline.rightLegGroup.rotation.x = 0
+        if (oline.leftArmGroup) oline.leftArmGroup.rotation.x = 0
+        if (oline.rightArmGroup) oline.rightArmGroup.rotation.x = 0
       })
 
       const defenderPositions = [
@@ -1137,24 +1149,98 @@ export function FootballGame() {
         }
       }
 
-      // Receiver routes - run forward towards endzone
+      // Offensive line blocking
+      offenseLineRef.current.forEach((lineman, i) => {
+        const oline = lineman as any
+        
+        // Find closest rusher to block
+        let closestRusher: typeof defendersRef.current[0] | null = null
+        let closestDist = Infinity
+        
+        for (const defender of defendersRef.current) {
+          if (defender.target === "rusher") {
+            const dist = BABYLON.Vector3.Distance(lineman.position, defender.group.position)
+            if (dist < closestDist) {
+              closestDist = dist
+              closestRusher = defender
+            }
+          }
+        }
+        
+        // Block the rusher
+        if (closestRusher && closestDist < 12) {
+          const toRusher = closestRusher.group.position.subtract(lineman.position)
+          toRusher.y = 0
+          toRusher.normalize()
+          
+          // Move toward rusher to engage
+          const blockSpeed = 3.5
+          lineman.position.addInPlace(toRusher.scale(blockSpeed * delta))
+          
+          // Keep within reasonable blocking zone
+          lineman.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, lineman.position.x))
+          lineman.position.z = Math.max(FIELD_MIN_Z + 2, Math.min(-8, lineman.position.z))
+          
+          // Face the rusher
+          lineman.rotation.y = Math.atan2(toRusher.x, toRusher.z)
+          
+          // Animate blocking
+          if (oline.leftLegGroup && oline.rightLegGroup && oline.leftArmGroup && oline.rightArmGroup) {
+            animatePlayer(
+              oline.leftLegGroup,
+              oline.rightLegGroup,
+              oline.leftArmGroup,
+              oline.rightArmGroup,
+              animationTimeRef.current,
+              1.0,
+            )
+          }
+        }
+      })
+
+      // Receiver routes - run intelligent routes towards endzone
       receiversRef.current.forEach((r, i) => {
         const routeSpeed = 10
+        const currentTime = animationTimeRef.current
         
         // Receivers run forward (positive z direction) from line of scrimmage
         if (r.group.position.z < ENDZONE_Z - 1) {
-          // Run routes
+          // Run intelligent routes based on coverage
           if (i === 0) {
-            // WR1 - streak left
+            // WR1 - smart post/corner route
             r.group.position.z += routeSpeed * delta
-            if (r.group.position.z > 5) {
-              r.group.position.x -= routeSpeed * 0.15 * delta
+            
+            // Break off at yard 0, then cut based on coverage
+            if (r.group.position.z > 0) {
+              // If defender is inside, run corner route (outside)
+              const defender = defendersRef.current[2] // corner defender for WR1
+              if (defender && defender.group.position.x > r.group.position.x) {
+                r.group.position.x -= routeSpeed * 0.2 * delta
+              } else {
+                // Run post route (inside)
+                r.group.position.x += routeSpeed * 0.15 * delta
+              }
+            } else {
+              // Run straight off the line
+              r.group.position.x -= routeSpeed * 0.05 * delta
             }
           } else {
-            // WR2 - streak right
+            // WR2 - smart slant/streak route
             r.group.position.z += routeSpeed * delta
-            if (r.group.position.z > 5) {
-              r.group.position.x += routeSpeed * 0.15 * delta
+            
+            // Break off at yard 0
+            if (r.group.position.z > 0) {
+              const defender = defendersRef.current[3] // corner defender for WR2
+              if (defender && defender.group.position.x < r.group.position.x) {
+                // Run outside if defender is inside
+                r.group.position.x += routeSpeed * 0.2 * delta
+              } else {
+                // Run slant (inside)
+                r.group.position.x -= routeSpeed * 0.15 * delta
+              }
+            } else {
+              // Run straight off the line
+              r.group.position.x += routeSpeed * 0.05 * delta
             }
           }
         }
