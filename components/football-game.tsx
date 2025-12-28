@@ -1214,7 +1214,7 @@ export function FootballGame() {
             if (r.group.position.z > 0) {
               // If defender is inside, run corner route (outside)
               const defender = defendersRef.current[2] // corner defender for WR1
-              if (defender && defender.group.position.x > r.group.position.x) {
+              if (defender && defendersRef.current.length > 2 && defender.group.position.x > r.group.position.x) {
                 r.group.position.x -= routeSpeed * 0.2 * delta
               } else {
                 // Run post route (inside)
@@ -1231,7 +1231,7 @@ export function FootballGame() {
             // Break off at yard 0
             if (r.group.position.z > 0) {
               const defender = defendersRef.current[3] // corner defender for WR2
-              if (defender && defender.group.position.x < r.group.position.x) {
+              if (defender && defendersRef.current.length > 3 && defender.group.position.x < r.group.position.x) {
                 // Run outside if defender is inside
                 r.group.position.x += routeSpeed * 0.2 * delta
               } else {
