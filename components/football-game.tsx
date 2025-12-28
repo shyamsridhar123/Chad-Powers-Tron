@@ -1400,13 +1400,10 @@ export function FootballGame() {
       }
     }
 
-    // Handle touchdown
+    // Handle touchdown - ends the game with a win
     const handleTouchdown = () => {
       if (playEndedRef.current) return // Prevent double-triggering
       playEndedRef.current = true
-      
-      // Reset to starting position after touchdown
-      lineOfScrimmageRef.current = -15
       
       // Get receiver position for cutscene
       const receiver = receiversRef.current.find((r) => r.data.id === gameStateRef.current.selectedReceiver?.id)
@@ -1415,10 +1412,6 @@ export function FootballGame() {
       setGameState((prev) => ({
         ...prev,
         score: prev.score + 7,
-        downs: 1,
-        yardsToGo: 10,
-        lineOfScrimmage: -15,
-        firstDownMarker: -5,
         cutscene: "touchdown",
         message: "TOUCHDOWN!",
       }))
@@ -1429,13 +1422,16 @@ export function FootballGame() {
         createCelebrationParticles(ballRef.current.position.clone())
       }
       
-      // Play touchdown cutscene - will call resetPlay after completion
+      // Play touchdown cutscene
       playTouchdownCutscene(receiverPos)
       
-      // Reset play after cutscene (3 seconds total for cutscene)
+      // End the game after cutscene (3 seconds total for cutscene)
       setTimeout(() => {
-        setGameState((prev) => ({ ...prev, message: "" }))
-        resetPlay()
+        setGameState((prev) => ({ 
+          ...prev, 
+          gameStatus: "gameover",
+          message: "YOU WIN!" 
+        }))
       }, 3000)
     }
 
