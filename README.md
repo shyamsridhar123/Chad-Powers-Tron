@@ -1,30 +1,48 @@
-# NFL inspired football game
+# Chad Powers Tron
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
-
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/shyamsridhar123s-projects/v0-nfl-inspired-football-game)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/cKlLJES45bx)
+[![Deployed on GitHub Pages](https://img.shields.io/badge/Deployed%20on-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://shyamsridhar123.github.io/Chad-Powers-Tron/)
+[![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 
 ## Overview
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+Chad Powers Tron is a Tron-themed NFL arcade football game where you play as Chad Powers, throwing to receivers before getting sacked in an exciting 5v5 football showdown.
 
 ## Deployment
 
 Your project is live at:
 
-**[https://vercel.com/shyamsridhar123s-projects/v0-nfl-inspired-football-game](https://vercel.com/shyamsridhar123s-projects/v0-nfl-inspired-football-game)**
+**[https://shyamsridhar123.github.io/Chad-Powers-Tron/](https://shyamsridhar123.github.io/Chad-Powers-Tron/)**
 
-## Build your app
+The app is automatically deployed to GitHub Pages via GitHub Actions whenever changes are pushed to the main branch.
 
-Continue building your app on:
+## Development
 
-**[https://v0.app/chat/cKlLJES45bx](https://v0.app/chat/cKlLJES45bx)**
+To run the app locally:
 
-## How It Works
+```bash
+# Install dependencies
+npm install
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+# Run the development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+## Features
+
+- 🏈 Tron-themed 5v5 arcade football gameplay
+- 🎮 Play as Chad Powers
+- 🌟 Stunning visual effects and animations
+- 📱 Optimized for mobile and desktop
+
+## Technology Stack
+
+- **Framework**: Next.js 16
+- **UI Libraries**: React 19, Radix UI
+- **3D Graphics**: React Three Fiber, Babylon.js
+- **Styling**: Tailwind CSS
+- **Deployment**: GitHub Pages via GitHub Actions
