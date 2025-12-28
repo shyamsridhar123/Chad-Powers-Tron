@@ -1826,7 +1826,9 @@ export function FootballGame() {
           -FIELD_HALF_WIDTH + 1,
           Math.min(FIELD_HALF_WIDTH - 1, qbRef.current.position.x),
         )
-        qbRef.current.position.z = Math.max(FIELD_MIN_Z + 2, Math.min(-10, qbRef.current.position.z)) // Adjusted boundaries
+        // QB can move from far behind LOS to slightly past it, relative to current line of scrimmage
+        const los = lineOfScrimmageRef.current
+        qbRef.current.position.z = Math.max(los - 15, Math.min(los + 3, qbRef.current.position.z))
 
         if (ballRef.current) {
           ballRef.current.position.x = qbRef.current.position.x + 0.3
@@ -2000,8 +2002,10 @@ export function FootballGame() {
           const rushSpeed = 2.5
           d.group.position.addInPlace(toQB.scale(rushSpeed * delta))
 
+          const los = lineOfScrimmageRef.current
           d.group.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, d.group.position.x))
-          d.group.position.z = Math.max(FIELD_MIN_Z + 2, Math.min(-5, d.group.position.z)) // Allow rushers to chase QB into backfield
+          // Rushers can chase QB from in front of LOS to behind it
+          d.group.position.z = Math.max(los - 15, Math.min(los + 5, d.group.position.z))
 
           d.group.rotation.y = Math.atan2(toQB.x, toQB.z)
 
