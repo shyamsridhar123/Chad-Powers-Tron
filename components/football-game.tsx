@@ -62,7 +62,7 @@ export function FootballGame() {
     score: 0,
     downs: 1,
     gameStatus: "menu",
-    sackTimer: 12,
+    sackTimer: 5,
     message: null,
     selectedReceiver: null,
   })
@@ -116,7 +116,7 @@ export function FootballGame() {
       score: 0,
       downs: 1,
       gameStatus: "playing",
-      sackTimer: 12,
+      sackTimer: 5,
       message: null,
       selectedReceiver: null,
     })
@@ -130,7 +130,7 @@ export function FootballGame() {
       score: 0,
       downs: 1,
       gameStatus: "playing",
-      sackTimer: 12,
+      sackTimer: 5,
       message: null,
       selectedReceiver: null,
     })
@@ -773,7 +773,7 @@ export function FootballGame() {
       { pos: new BABYLON.Vector3(4, 0, -8), target: "rusher" },
       { pos: new BABYLON.Vector3(-12, 0, -5), target: "corner" },
       { pos: new BABYLON.Vector3(12, 0, -5), target: "corner" },
-      { pos: new BABYLON.Vector3(0, 0, 0), target: "safety" },
+      { pos: new BABYLON.Vector3(0, 0, 5), target: "safety" },
     ]
 
     defendersRef.current = defenderData.map((d, i) => {
@@ -840,7 +840,7 @@ export function FootballGame() {
         { pos: new BABYLON.Vector3(4, 0, -8), target: "rusher" },
         { pos: new BABYLON.Vector3(-12, 0, -5), target: "corner" },
         { pos: new BABYLON.Vector3(12, 0, -5), target: "corner" },
-        { pos: new BABYLON.Vector3(0, 0, 0), target: "safety" },
+        { pos: new BABYLON.Vector3(0, 0, 5), target: "safety" },
       ]
       defendersRef.current.forEach((d, i) => {
         d.group.position = defenderPositions[i].pos.clone()
@@ -851,7 +851,7 @@ export function FootballGame() {
 
       setGameState((prev) => ({
         ...prev,
-        sackTimer: 12,
+        sackTimer: 5,
         selectedReceiver: null,
         message: "",
       }))
@@ -938,7 +938,21 @@ export function FootballGame() {
     const handleCatch = () => {
       triggerHaptic("medium")
       setGameState((prev) => ({ ...prev, message: "COMPLETE!" }))
-      setTimeout(() => handleTouchdown(), 500)
+      
+      // Check if the catch was in the endzone for a touchdown
+      if (ballRef.current && ballRef.current.position.z >= ENDZONE_Z - 3) {
+        setTimeout(() => handleTouchdown(), 500)
+      } else {
+        // Successful catch but not a touchdown - reset for next down
+        setTimeout(() => {
+          setGameState((prev) => ({
+            ...prev,
+            downs: 1, // Reset downs on successful completion
+            message: "",
+          }))
+          resetPlay()
+        }, 1500)
+      }
     }
 
     // Handle interception
@@ -1175,7 +1189,7 @@ export function FootballGame() {
           d.group.position.addInPlace(toQB.scale(rushSpeed * delta))
 
           d.group.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, d.group.position.x))
-          d.group.position.z = Math.max(FIELD_MIN_Z + 5, Math.min(-5, d.group.position.z)) // Adjusted boundaries
+          d.group.position.z = Math.max(FIELD_MIN_Z + 2, Math.min(-5, d.group.position.z)) // Allow rushers to chase QB into backfield
 
           d.group.rotation.y = Math.atan2(toQB.x, toQB.z)
 
