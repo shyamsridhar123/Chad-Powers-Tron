@@ -9,11 +9,15 @@ Chad Powers Tron is a Tron-themed NFL arcade football game where you play as Cha
 
 ## Deployment
 
-Your project is live at:
+Your project is configured to be deployed to:
 
 **[https://shyamsridhar123.github.io/Chad-Powers-Tron/](https://shyamsridhar123.github.io/Chad-Powers-Tron/)**
 
 The app is automatically deployed to GitHub Pages via GitHub Actions whenever changes are pushed to the main branch.
+
+### Setup Required
+
+⚠️ **Important**: If this is your first deployment or if the deployment is failing, please follow the setup instructions in [DEPLOYMENT_SETUP.md](./DEPLOYMENT_SETUP.md) to configure GitHub Pages in your repository settings.
 
 ## Development
 
