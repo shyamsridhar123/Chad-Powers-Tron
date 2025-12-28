@@ -1877,9 +1877,11 @@ export function FootballGame() {
           const blockSpeed = 3.5
           lineman.position.addInPlace(toRusher.scale(blockSpeed * delta))
           
-          // Keep within reasonable blocking zone
+          // Keep within reasonable blocking zone relative to line of scrimmage
+          const los = lineOfScrimmageRef.current
           lineman.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, lineman.position.x))
-          lineman.position.z = Math.max(FIELD_MIN_Z + 2, Math.min(-8, lineman.position.z))
+          // Allow linemen to stay at line of scrimmage, not go too far forward or backward
+          lineman.position.z = Math.max(los - 10, Math.min(los + 5, lineman.position.z))
           
           // Face the rusher
           lineman.rotation.y = Math.atan2(toRusher.x, toRusher.z)
