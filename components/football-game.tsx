@@ -1237,21 +1237,24 @@ export function FootballGame() {
             if (distanceTraveled < breakPoint) {
               // Phase 1: Run straight up the field (stem)
               r.group.position.z += routeSpeed * delta
-              // Slight inside release to set up the break
-              r.group.position.x += routeSpeed * 0.1 * delta
+              // Slight inside release to set up the break (toward center = negative x)
+              r.group.position.x -= routeSpeed * 0.1 * delta
             } else {
               // Phase 2: Break on the route - check defender position
+              // WR2 is on the right side (positive x), so:
+              // - defender.x < receiver.x means defender is INSIDE (toward center/left)
+              // - defender.x > receiver.x means defender is OUTSIDE (toward right sideline)
               const defender = defendersRef.current[3] // corner defender for WR2
-              const defenderOutside = defender && defender.group.position.x > r.group.position.x
+              const defenderInside = defender && defender.group.position.x < r.group.position.x
               
-              if (defenderOutside) {
-                // Defender is outside - run a slant route (break inside)
-                r.group.position.z += routeSpeed * 0.5 * delta
-                r.group.position.x -= routeSpeed * 0.85 * delta // Sharp inside cut
-              } else {
-                // Defender is inside - run an out route (break outside toward sideline)
+              if (defenderInside) {
+                // Defender is inside (between receiver and center) - run out route toward sideline
                 r.group.position.z += routeSpeed * 0.4 * delta
-                r.group.position.x += routeSpeed * 0.9 * delta // Sharp outside cut
+                r.group.position.x += routeSpeed * 0.9 * delta // Sharp outside cut (toward right sideline)
+              } else {
+                // Defender is outside or unknown - run slant route toward center
+                r.group.position.z += routeSpeed * 0.5 * delta
+                r.group.position.x -= routeSpeed * 0.85 * delta // Sharp inside cut (toward center)
               }
             }
           }
