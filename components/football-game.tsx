@@ -891,10 +891,12 @@ export function FootballGame() {
       if (targetReceiver) {
         const receiverVelocity = 10
         const distance = BABYLON.Vector3.Distance(ballRef.current.position, targetReceiver.group.position)
-        const ballSpeed = 45
+        const ballSpeed = 32 // Slower ball for more playable experience
         const flightTime = distance / ballSpeed
 
-        const leadZ = Math.min(targetReceiver.group.position.z + receiverVelocity * flightTime * 0.8, ENDZONE_Z - 1)
+        // Lead the receiver more accurately - aim slightly ahead of where they're running
+        // Reduced lead factor for better accuracy
+        const leadZ = Math.min(targetReceiver.group.position.z + receiverVelocity * flightTime * 0.65, ENDZONE_Z - 1)
         const leadX = targetReceiver.group.position.x
 
         const targetPos = new BABYLON.Vector3(
@@ -907,7 +909,7 @@ export function FootballGame() {
 
         const throwDistance = BABYLON.Vector3.Distance(ballRef.current.position, targetPos)
         const flightDuration = throwDistance / ballSpeed
-        const maxHeight = 1.5 + throwDistance * 0.06
+        const maxHeight = 1.5 + throwDistance * 0.08 // Higher arc for more realistic trajectory
 
         ballFlightRef.current = {
           startPos: ballRef.current.position.clone(),
@@ -1056,11 +1058,11 @@ export function FootballGame() {
         }
       }
 
-      // Proximity-based throw assist
+      // Proximity-based throw assist - increased radius for easier targeting
       if (pickResult.hit && pickResult.pickedPoint) {
         const tapPoint = pickResult.pickedPoint
         let closestReceiver: (typeof receiversRef.current)[0] | null = null
-        let closestDist = 8
+        let closestDist = 12 // Increased from 8 for easier throw targeting
 
         for (const receiver of receiversRef.current) {
           const dist = BABYLON.Vector3.Distance(
@@ -1374,10 +1376,10 @@ export function FootballGame() {
           const receiver = receiversRef.current.find((r) => r.data.id === gameStateRef.current.selectedReceiver?.id)
           if (receiver) {
             const distToReceiver = BABYLON.Vector3.Distance(ballRef.current.position, receiver.group.position)
-            const isCatchable = distToReceiver < 3.5
+            const isCatchable = distToReceiver < 5 // Increased from 3.5 for more forgiving catches
 
             if (isCatchable) {
-              const catchChance = receiver.data.isOpen ? 0.95 : 0.35
+              const catchChance = receiver.data.isOpen ? 0.95 : 0.55 // Increased contested catch chance from 0.35
               if (Math.random() < catchChance) {
                 handleCatch()
               } else {
