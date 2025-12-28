@@ -145,10 +145,18 @@ export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggl
             </div>
           </div>
 
-          {/* Yards to Touchdown */}
-          <div className="flex-1 bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 border-emerald-500/50 rounded-xl px-3 py-2 shadow-lg shadow-emerald-500/20">
-            <div className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold text-center">To TD</div>
-            <div className="text-2xl font-black text-emerald-400 text-center leading-none mt-1">
+          {/* Yards to Touchdown - IMPROVED: More prominent in RedZone */}
+          <div className={`flex-1 bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 rounded-xl px-3 py-2 shadow-lg transition-all ${
+            gameState.yardsToTouchdown <= 10
+              ? "border-emerald-500 shadow-emerald-500/40 animate-pulse"
+              : "border-emerald-500/50 shadow-emerald-500/20"
+          }`}>
+            <div className={`text-[10px] uppercase tracking-widest font-bold text-center ${
+              gameState.yardsToTouchdown <= 10 ? "text-emerald-300" : "text-emerald-400"
+            }`}>To TD</div>
+            <div className={`text-2xl font-black text-center leading-none mt-1 ${
+              gameState.yardsToTouchdown <= 10 ? "text-emerald-300" : "text-emerald-400"
+            }`}>
               {gameState.yardsToTouchdown}<span className="text-sm text-zinc-400">yd</span>
             </div>
           </div>
@@ -200,6 +208,15 @@ export function GameUI({ gameState, onStart, onRestart, isMuted = false, onToggl
             }`}
           >
             {gameState.message}
+          </div>
+        </div>
+      )}
+
+      {/* RedZone indicator - MOBILE IMPROVEMENT: Visual cue when in scoring position */}
+      {gameState.gameStatus === "playing" && gameState.yardsToTouchdown <= 10 && gameState.cutscene === "none" && (
+        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 pointer-events-none z-30 animate-pulse">
+          <div className="bg-emerald-500/20 text-emerald-300 border-2 border-emerald-400 px-6 py-2 rounded-full text-sm font-bold uppercase tracking-wider shadow-lg shadow-emerald-500/30">
+            <span aria-label="Football">🏈</span> RedZone! {gameState.yardsToTouchdown} yards to TD!
           </div>
         </div>
       )}

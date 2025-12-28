@@ -14,6 +14,7 @@ const FIELD_HALF_WIDTH = FIELD_WIDTH / 2 - 0.5
 const FIELD_MIN_Z = -28 // adjusted for larger field
 const FIELD_MAX_Z = 28 // adjusted for larger field
 const ENDZONE_Z = 25 // adjusted for larger field
+const RECEIVER_MAX_ENDZONE_DEPTH = ENDZONE_Z + 2 // Receivers can run to z=27
 
 // Convert Z position to yards to touchdown (endzone starts at ENDZONE_Z - 3 = 22)
 const getYardsToTouchdown = (zPos: number): number => {
@@ -42,12 +43,6 @@ const triggerHaptic = (type: "light" | "medium" | "heavy" | "success" | "error")
         break
     }
   }
-}
-
-const clampToField = (pos: BABYLON.Vector3) => {
-  pos.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, pos.x))
-  pos.z = Math.max(FIELD_MIN_Z, Math.min(FIELD_MAX_Z, pos.z))
-  return pos
 }
 
 export function FootballGame() {
@@ -886,20 +881,20 @@ export function FootballGame() {
       ;(result.group as any).leftArmGroup = result.leftArmGroup
       ;(result.group as any).rightArmGroup = result.rightArmGroup
 
-      const ring = BABYLON.MeshBuilder.CreateTorus("ring", { diameter: 3.5, thickness: 0.2, tessellation: 32 }, scene)
+      const ring = BABYLON.MeshBuilder.CreateTorus("ring", { diameter: 4, thickness: 0.25, tessellation: 32 }, scene)
       ring.position.y = 0.1
       ring.rotation.x = Math.PI / 2
       const ringMat = new BABYLON.StandardMaterial("ringMat", scene)
       ringMat.diffuseColor = BABYLON.Color3.FromHexString("#00ff88")
-      ringMat.emissiveColor = BABYLON.Color3.FromHexString("#00ff88").scale(0.5)
+      ringMat.emissiveColor = BABYLON.Color3.FromHexString("#00ff88").scale(0.6)
       ring.material = ringMat
       ring.parent = result.group
       glowLayer.addIncludedOnlyMesh(ring)
       ;(result.group as any).ring = ring
 
-      // Large hit area for tap detection
-      const hitArea = BABYLON.MeshBuilder.CreateCylinder("hitArea", { height: 3, diameter: 6 }, scene)
-      hitArea.position.y = 1.5
+      // Large hit area for tap detection - IMPROVED: Increased size for better mobile tapping
+      const hitArea = BABYLON.MeshBuilder.CreateCylinder("hitArea", { height: 4, diameter: 8 }, scene)
+      hitArea.position.y = 2
       hitArea.parent = result.group
       hitArea.visibility = 0
       hitArea.isPickable = true
@@ -976,9 +971,9 @@ export function FootballGame() {
         qbRef.current.rotation.y = 0
       }
 
-      // Position ball with QB
+      // Position ball with QB - relative to QB position
       if (ballRef.current) {
-        ballRef.current.position = new BABYLON.Vector3(0.3, 1.5, los + 0.5)
+        ballRef.current.position = new BABYLON.Vector3(0.3, 1.5, los - 7.5)
         ballRef.current.rotation = new BABYLON.Vector3(Math.PI / 2, 0, 0)
       }
 
@@ -1378,8 +1373,10 @@ export function FootballGame() {
         
         // Lead the receiver along their route direction
         // Use the actual velocity direction, not just forward
-        let leadX = receiverPos.x + velocity.x * flightTime * 0.75
-        let leadZ = receiverPos.z + velocity.z * flightTime * 0.75
+        // IMPROVED: Increase lead factor for endzone throws (from 0.75 to 0.85) to help reach TD zone
+        const leadFactor = receiverPos.z >= ENDZONE_Z - 10 ? 0.95 : 0.75 // More lead when near endzone
+        let leadX = receiverPos.x + velocity.x * flightTime * leadFactor
+        let leadZ = receiverPos.z + velocity.z * flightTime * leadFactor
         
         // If a click point was provided, bias the throw toward the click direction
         // This helps when the user clicks ahead of the receiver on their route
@@ -1407,7 +1404,7 @@ export function FootballGame() {
         
         // Clamp to field boundaries but allow throws INTO the endzone
         leadX = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, leadX))
-        leadZ = Math.min(ENDZONE_Z + 2, Math.max(receiverPos.z, leadZ)) // Allow throws into endzone
+        leadZ = Math.min(RECEIVER_MAX_ENDZONE_DEPTH, Math.max(receiverPos.z, leadZ)) // Allow throws into endzone
 
         const targetPos = new BABYLON.Vector3(leadX, 1.5, leadZ)
 
@@ -1571,6 +1568,7 @@ export function FootballGame() {
         message: "INTERCEPTED!" 
       }))
       triggerHaptic("error")
+      // TODO: Add dedicated interception sound effect - currently reusing sack sound
       audioFunctionsRef.current.playSack()
       if (ballRef.current) {
         createCelebrationParticles(ballRef.current.position.clone(), new BABYLON.Color4(1, 0.5, 0, 1))
@@ -1908,16 +1906,16 @@ export function FootballGame() {
         const yardsToEndzone = ENDZONE_Z - r.group.position.z
         
         // Receivers run forward (positive z direction) from line of scrimmage
-        if (r.group.position.z < ENDZONE_Z - 1) {
-          // ENDZONE PRIORITY: When close to endzone, run straight to it
-          if (yardsToEndzone <= 8) {
-            // Near the endzone - run a fade/streak to get in
-            r.group.position.z += routeSpeed * delta
+        if (r.group.position.z < RECEIVER_MAX_ENDZONE_DEPTH) {
+          // ENDZONE PRIORITY: When close to endzone, run straight to it - INCREASED range from 8 to 12 yards
+          if (yardsToEndzone <= 12) {
+            // Near the endzone - run a fade/streak to get DEEP into endzone for TD
+            r.group.position.z += routeSpeed * 1.2 * delta // Increased speed to get into endzone faster
             // Slight drift toward the center of the endzone
             if (r.group.position.x < 0) {
-              r.group.position.x += routeSpeed * 0.2 * delta
+              r.group.position.x += routeSpeed * 0.15 * delta
             } else {
-              r.group.position.x -= routeSpeed * 0.2 * delta
+              r.group.position.x -= routeSpeed * 0.15 * delta
             }
           } else if (i === 0) {
             // WR1 - Post/Corner route: Run vertical, then break diagonally
@@ -1970,8 +1968,8 @@ export function FootballGame() {
           }
         }
 
-        // Allow receivers to run INTO the endzone (ENDZONE_Z + 2 = 27)
-        r.group.position.z = Math.min(ENDZONE_Z + 2, r.group.position.z)
+        // Allow receivers to run INTO the endzone
+        r.group.position.z = Math.min(RECEIVER_MAX_ENDZONE_DEPTH, r.group.position.z)
         r.group.position.x = Math.max(-FIELD_HALF_WIDTH + 1, Math.min(FIELD_HALF_WIDTH - 1, r.group.position.x))
 
         r.data.position = { x: r.group.position.x, z: r.group.position.z }
@@ -2015,11 +2013,14 @@ export function FootballGame() {
             const toReceiver = targetReceiver.group.position.subtract(d.group.position)
             toReceiver.y = 0
             toReceiver.normalize()
-            const coverSpeed = 8.5
+            // IMPROVED: Slower defender speed in RedZone to make TDs more achievable
+            const receiverInRedZone = targetReceiver.group.position.z >= ENDZONE_Z - 10
+            const coverSpeed = receiverInRedZone ? 7.5 : 8.5 // Reduced from 8.5 to 7.5 in RedZone
             d.group.position.addInPlace(toReceiver.scale(coverSpeed * delta))
 
             d.group.position.x = Math.max(-FIELD_HALF_WIDTH, Math.min(FIELD_HALF_WIDTH, d.group.position.x))
-            d.group.position.z = Math.max(FIELD_MIN_Z + 10, Math.min(ENDZONE_Z - 1, d.group.position.z)) // Adjusted boundaries
+            // IMPROVED: Allow defenders to enter endzone but not as deep - was ENDZONE_Z - 1, now ENDZONE_Z + 1
+            d.group.position.z = Math.max(FIELD_MIN_Z + 10, Math.min(ENDZONE_Z + 1, d.group.position.z))
 
             d.group.rotation.y = Math.atan2(toReceiver.x, toReceiver.z)
 
