@@ -190,10 +190,12 @@ export function FootballGame() {
 
   const startGame = useCallback(() => {
     ensureAudioReady()
+    lineOfScrimmageRef.current = -15
     setGameState({
       score: 0,
       downs: 1,
       yardsToGo: 10,
+      yardsToTouchdown: 40,
       lineOfScrimmage: -15,
       firstDownMarker: -5,
       gameStatus: "playing",
@@ -210,10 +212,12 @@ export function FootballGame() {
 
   const restartGame = useCallback(() => {
     ensureAudioReady()
+    lineOfScrimmageRef.current = -15
     setGameState({
       score: 0,
       downs: 1,
       yardsToGo: 10,
+      yardsToTouchdown: 40,
       lineOfScrimmage: -15,
       firstDownMarker: -5,
       gameStatus: "playing",
@@ -2195,7 +2199,6 @@ export function FootballGame() {
         gameState={gameState}
         onStart={startGame}
         onRestart={restartGame}
-        receivers={uiReceivers}
         isMuted={isMuted}
         onToggleMute={toggleMute}
       />
